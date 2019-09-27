@@ -132,7 +132,6 @@ Please modify provided [example](./config/static-egressip-example.yaml) example 
 ## Status
 
 Here is quick status of the project:
-
 - suppports CNI's that support direct routing of pod traffic to other nodes. Flannel host-gw backeend mode, Calico and kube-router can used
 - operator has to manually choose a node to act of Gateway by annotating the node
 - only a single node acts as a gateway
@@ -140,9 +139,8 @@ Here is quick status of the project:
 - egress IP's specified in the `staticegressip`are expected to be routable to the node acting as Gateway in the cluster
 - supports selection of pods selected by provided Kubernetes service name. 
 
-## Roadmap
-
-- support CNI's that provide overlay solution like Flannel with vxlan backend, Weave etc
-- support leader election among the nodes so that operator does not have to choose and configure a node a Gateway
+## New Features
 - support more than a single node to act as Gateway
+- support CNI's that provide overlay solution like OVS, Flannel with vxlan backend, Weave etc
 - when a node acting as Gateway dies, reconfigure so that a new node performs Gateway functionliaty.
+- support leader election among the nodes so that operator does not have to choose and configure a node a Gateway
