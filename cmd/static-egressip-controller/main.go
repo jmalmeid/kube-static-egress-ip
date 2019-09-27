@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Nirmata inc.
+Copyright 2019 Joao Almeida
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	clientset "github.com/nirmata/kube-static-egress-ip/pkg/client/clientset/versioned"
-	informers "github.com/nirmata/kube-static-egress-ip/pkg/client/informers/externalversions"
-	"github.com/nirmata/kube-static-egress-ip/pkg/controller"
-	"github.com/nirmata/kube-static-egress-ip/pkg/signals"
-	"github.com/nirmata/kube-static-egress-ip/pkg/version"
+	clientset "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned"
+	informers "github.com/jmalmeid/kube-static-egress-ip/pkg/client/informers/externalversions"
+	"github.com/jmalmeid/kube-static-egress-ip/pkg/controller"
+	"github.com/jmalmeid/kube-static-egress-ip/pkg/signals"
+	"github.com/jmalmeid/kube-static-egress-ip/pkg/version"
 
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -42,7 +42,7 @@ func main() {
 	flag.Parse()
 	defer glog.Flush()
 
-	glog.Infof("Running Nirmata static egress ip controller version: " + version.Version)
+	glog.Infof("Running static egress ip controller version: " + version.Version)
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
 

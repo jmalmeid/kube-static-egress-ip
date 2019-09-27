@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Nirmata inc.
+Copyright 2019 Joao Almeida
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package controller
 import (
 	"crypto/sha256"
 	"encoding/base32"
+	"hash/fnv"
 	"errors"
 	"fmt"
 	"strconv"
@@ -33,20 +34,20 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	egressipAPI "github.com/nirmata/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
-	clientset "github.com/nirmata/kube-static-egress-ip/pkg/client/clientset/versioned"
-	informers "github.com/nirmata/kube-static-egress-ip/pkg/client/informers/externalversions/egressip/v1alpha1"
-	listers "github.com/nirmata/kube-static-egress-ip/pkg/client/listers/egressip/v1alpha1"
-	director "github.com/nirmata/kube-static-egress-ip/pkg/director"
-	gateway "github.com/nirmata/kube-static-egress-ip/pkg/gateway"
-	utils "github.com/nirmata/kube-static-egress-ip/pkg/utils"
+	egressipAPI "github.com/jmalmeid/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
+	clientset "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned"
+	informers "github.com/jmalmeid/kube-static-egress-ip/pkg/client/informers/externalversions/egressip/v1alpha1"
+	listers "github.com/jmalmeid/kube-static-egress-ip/pkg/client/listers/egressip/v1alpha1"
+	director "github.com/jmalmeid/kube-static-egress-ip/pkg/director"
+	gateway "github.com/jmalmeid/kube-static-egress-ip/pkg/gateway"
+	utils "github.com/jmalmeid/kube-static-egress-ip/pkg/utils"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 )
 
 const (
 	controllerAgentName    = "egressip-controller"
-	egressGatewayAnnotaion = "nirmata.io/staticegressips-gateway"
+	egressGatewayLabel = "io/staticegressips-gateway"
 )
 
 // Controller is the controller implementation for StaticEgressIP resources
@@ -230,19 +231,18 @@ func (c *Controller) syncHandler(key string) error {
 	}
 
 	glog.Info("Processing update to StaticEgressIP: " + key)
-	if staticEgressIP.Status.GatewayNode == "" {
+	if staticEgressIP.Status.Gateways == nil {
 		glog.Info("Gateway for forStaticEgressIP: " + key + " is not set yet, so ignoring the update")
 		return nil
 	}
 
-	var isGateway bool
-	isGateway, err = c.isEgressGateway(c.kubeclientset, staticEgressIP)
+	isGateway, err := c.isEgressGateway(c.kubeclientset, staticEgressIP)
 	if err != nil {
 		return errors.New("Failed to identify the gateway for static egress IP: " + key + " due to" + err.Error())
 
 	}
 	if isGateway {
-		return c.doGatewyProcessing(c.kubeclientset, staticEgressIP)
+		return c.doGatewayProcessing(c.kubeclientset, staticEgressIP)
 	} else {
 		return c.doDirectorProcessing(c.kubeclientset, staticEgressIP)
 	}
@@ -255,11 +255,16 @@ func (c *Controller) isEgressGateway(clientset kubernetes.Interface, staticEgres
 	if err != nil {
 		return false, err
 	}
-	return staticEgressIP.Status.GatewayNode == string(nodeObject.UID), nil
+	for _, gateway := range staticEgressIP.Status.Gateways {
+		if gateway.GatewayNode == string(nodeObject.UID) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (c *Controller) doDirectorProcessing(clientset kubernetes.Interface, staticEgressIP *egressipAPI.StaticEgressIP) error {
-	if staticEgressIP.Status.GatewayIP == "" {
+	if staticEgressIP.Status.Gateways == nil {
 		glog.Info("Gateway IP for forStaticEgressIP: " + staticEgressIP.Name + " is not set yet, so ignoring the update")
 		return nil
 	}
@@ -274,9 +279,12 @@ func (c *Controller) doDirectorProcessing(clientset kubernetes.Interface, static
 				for _, addr := range epSubset.Addresses {
 					ips = append(ips, addr.IP)
 				}
+				break
 			}
 		}
-		err = c.trafficDirector.AddRouteToGateway(generateRuleId(staticEgressIP.Namespace, staticEgressIP.Name, i), ips, rule.Cidr, staticEgressIP.Status.GatewayIP)
+                //glog.Infof("Generate rule: %s",generateRule(staticEgressIP.Namespace, staticEgressIP.Name, i));
+	        setID, setName := generateRule(staticEgressIP.Namespace, staticEgressIP.Name, i)
+		err = c.trafficDirector.AddRouteToGateway(setID, setName, ips, rule.Cidr, staticEgressIP.Status.Gateways[0].GatewayIP)
 		if err != nil {
 			glog.Errorf("Failed to setup routes to send the egress traffic to gateway due to %s", err.Error())
 		}
@@ -285,17 +293,25 @@ func (c *Controller) doDirectorProcessing(clientset kubernetes.Interface, static
 	return nil
 }
 
-func (c *Controller) doGatewyProcessing(clientset kubernetes.Interface, staticEgressIP *egressipAPI.StaticEgressIP) error {
+func (c *Controller) doGatewayProcessing(clientset kubernetes.Interface, staticEgressIP *egressipAPI.StaticEgressIP) error {
 
 	gatewayIP, err := utils.GetGatewayIP()
 	if err != nil {
 		return err
 	}
+        nodeObject, err := utils.GetNodeObject(clientset, "")
+        if err != nil {
+                glog.Infof("Failed to get nodeObject: %s\n", err.Error())
+        }
 	copyObj := staticEgressIP.DeepCopy()
-	copyObj.Status.GatewayIP = gatewayIP
+        for i, gateway := range copyObj.Status.Gateways {
+                if gateway.GatewayNode == string(nodeObject.UID) {
+		   copyObj.Status.Gateways[i].GatewayIP = gatewayIP
+                }
+        }
 	_, err = c.egressIPclientset.StaticegressipsV1alpha1().StaticEgressIPs(staticEgressIP.Namespace).Update(copyObj)
 	if err != nil {
-		glog.Infof("Failed to update GatewayIP to %s for static egress ip %s due to %s\n", gatewayIP, staticEgressIP.Name, err.Error())
+ 		glog.Infof("Failed to update GatewayIP to %s for static egress ip %s due to %s\n", gatewayIP, staticEgressIP.Name, err.Error())
 	}
 
 	for i, rule := range staticEgressIP.Spec.Rules {
@@ -309,25 +325,35 @@ func (c *Controller) doGatewyProcessing(clientset kubernetes.Interface, staticEg
 				for _, addr := range epSubset.Addresses {
 					ips = append(ips, addr.IP)
 				}
+				break
 			}
 		}
-		err = c.trafficGateway.AddStaticIptablesRule(generateRuleId(staticEgressIP.Namespace, staticEgressIP.Name, i), ips, rule.Cidr, rule.EgressIP)
+		setID, setName := generateRule(staticEgressIP.Namespace, staticEgressIP.Name, i)
+		err = c.trafficGateway.AddStaticIptablesRule(setID,setName, ips, rule.Cidr, rule.EgressIP)
 		if err != nil {
 			glog.Errorf("Failed to setup rules to send egress traffic on gateway", err.Error())
 		}
-		err = gateway.ConfigureStaticIP(rule.EgressIP + "/32")
-		if err != nil {
-			glog.Errorf("Failed to add egress IP %s for the staticegressip %s on the gateway due to %s", rule.EgressIP, staticEgressIP.Namespace+"/"+staticEgressIP.Name, err.Error())
-		}
+		//err = gateway.ConfigureStaticIP(rule.EgressIP + "/32")
+		//if err != nil {
+		//	glog.Errorf("Failed to add egress IP %s for the staticegressip %s on the gateway due to %s", rule.EgressIP, staticEgressIP.Namespace+"/"+staticEgressIP.Name, err.Error())
+		//}
 	}
 
 	return nil
 }
 
-func generateRuleId(namespace, staticEgressIpResourceName string, ruleNo int) string {
+func generateRuleID(s string) string {
+        h := fnv.New32a()
+        h.Write([]byte(s))
+        id := h.Sum32() / 100000
+        return strconv.FormatInt(int64(id), 10)
+}
+
+func generateRule(namespace, staticEgressIpResourceName string, ruleNo int) (string,string) {
 	hash := sha256.Sum256([]byte(namespace + staticEgressIpResourceName + strconv.Itoa(ruleNo)))
 	encoded := base32.StdEncoding.EncodeToString(hash[:])
-	return "EGRESS-IP-" + encoded[:16]
+     	id := generateRuleID(encoded[:16])
+	return id, "EGRESS-IP-" + encoded[:16]
 }
 
 func (c *Controller) addStaticEgressIP(obj interface{}) {
@@ -342,8 +368,8 @@ func (c *Controller) updateStaticEgressIP(old, current interface{}) {
 	newStaticEgressIPObj := current.(*egressipAPI.StaticEgressIP)
 	glog.Infof("Updating StaticEgressIP: %s/%s", oldStaticEgressIPObj.Namespace, oldStaticEgressIPObj.Name)
 
-	if oldStaticEgressIPObj.Status.GatewayNode != "" && newStaticEgressIPObj.Status.GatewayNode != "" {
-		if oldStaticEgressIPObj.Status.GatewayNode != newStaticEgressIPObj.Status.GatewayNode {
+	if oldStaticEgressIPObj.Status.Gateways != nil && newStaticEgressIPObj.Status.Gateways != nil {
+		if oldStaticEgressIPObj.Status.Gateways[0].GatewayNode != newStaticEgressIPObj.Status.Gateways[0].GatewayNode {
 			wasGateway, err := c.isEgressGateway(c.kubeclientset, oldStaticEgressIPObj)
 			if err != nil {
 				glog.Errorf("Failed to identify the gateway for static egress IP %s/%s due to %s", oldStaticEgressIPObj.Namespace, oldStaticEgressIPObj.Name, err.Error())
@@ -371,10 +397,12 @@ func (c *Controller) updateStaticEgressIP(old, current interface{}) {
 						for _, addr := range epSubset.Addresses {
 							ips = append(ips, addr.IP)
 						}
+						break
 					}
 				}
 				if wasGateway {
-					err = c.trafficGateway.ClearStaticIptablesRule(generateRuleId(oldStaticEgressIPObj.Namespace, oldStaticEgressIPObj.Name, i), rule.Cidr, rule.EgressIP)
+					setID, setName := generateRule(oldStaticEgressIPObj.Namespace, oldStaticEgressIPObj.Name, i)
+					err = c.trafficGateway.ClearStaticIptablesRule(setID, setName, ips, rule.Cidr, rule.EgressIP)
 					if err != nil {
 						glog.Errorf("Failed to cleanup old rules configured for gateway", err.Error())
 					}
@@ -384,7 +412,8 @@ func (c *Controller) updateStaticEgressIP(old, current interface{}) {
 					}
 				}
 				if isGateway {
-					err = c.trafficDirector.ClaerStaleRouteToGateway(generateRuleId(oldStaticEgressIPObj.Namespace, oldStaticEgressIPObj.Name, i), rule.Cidr, rule.EgressIP)
+					setID, setName := generateRule(oldStaticEgressIPObj.Namespace, oldStaticEgressIPObj.Name, i)
+					err = c.trafficDirector.ClearStaleRouteToGateway(setID, setName, rule.Cidr, rule.EgressIP)
 					if err != nil {
 						glog.Errorf("Failed to cleanup old rules configured for gateway", err.Error())
 					}
@@ -417,10 +446,38 @@ func (c *Controller) deleteStaticEgressIP(obj interface{}) {
 	glog.Infof("Deleting StaticEgressIP %s", staticEgressIP.Name)
 
 	for i, rule := range staticEgressIP.Spec.Rules {
-		err := c.trafficDirector.DeleteRouteToGateway(generateRuleId(staticEgressIP.Namespace, staticEgressIP.Name, i), rule.Cidr, staticEgressIP.Status.GatewayIP)
-		if err != nil {
-			glog.Errorf("Failed to delete routes to send the egress traffic to gateway", err.Error())
-		}
+		endpoint, err := c.endpointsLister.Endpoints(staticEgressIP.Namespace).Get(rule.ServiceName)
+                if err != nil {
+                        glog.Errorf("Failed to get endpoints object for service %s due to %s", rule.ServiceName, err.Error())
+                }
+                ips := make([]string, 0)
+                for _, epSubset := range endpoint.Subsets {
+                        for _, _ = range epSubset.Ports {
+                                for _, addr := range epSubset.Addresses {
+                                        ips = append(ips, addr.IP)
+                                }
+                                break
+                        }
+                }	
+		setID, setName := generateRule(staticEgressIP.Namespace, staticEgressIP.Name, i)
+        	isGateway, err := c.isEgressGateway(c.kubeclientset, staticEgressIP)
+        	if err != nil {
+                	glog.Errorf("Failed to identify the gateway for static egress IP: ", err.Error())
+
+        	}
+        	if isGateway {
+			glog.Infof("Delete rules and routes gateway node")
+			err = c.trafficGateway.ClearStaticIptablesRule(setID, setName, ips, rule.Cidr, rule.EgressIP)
+			if err != nil {
+				glog.Errorf("Failed to delete routes to send the egress traffic to interface at gateway", err.Error())
+			}
+        	} else {
+			glog.Infof("Delete rules and routes director node")
+			err = c.trafficDirector.DeleteRouteToGateway(setID, setName, ips, rule.Cidr, staticEgressIP.Status.Gateways[0].GatewayIP)
+			if err != nil {
+				glog.Errorf("Failed to delete routes to send the egress traffic to gateway", err.Error())
+			}
+        	}
 	}
 	c.enqueueStaticEgressIP(staticEgressIP)
 }

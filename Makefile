@@ -10,6 +10,8 @@ BUNDLES = bundles
 GO_PACKAGES = ./cmd/... ./pkg/...
 GO_FILES := $(shell find $(shell $(GO) list -f '{{.Dir}}' $(GO_PACKAGES)) -name \*.go)
 
+all: controller-container manager-container
+
 default: binary
 
 controller-binary:
@@ -22,7 +24,13 @@ update:
 	./hack/update-codegen.sh
 
 controller-container:
-	docker build -t nirmata/$(EGRESSIP_CONTROLLER_IMAGE):latest -f Dockerfile.controller .
+	docker build -t jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):1.1 -f Dockerfile.controller .
+	docker push docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):1.1
+	docker tag docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):1.1 docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):latest
+	docker push docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):latest
 
 manager-container:
-	docker build -t nirmata/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):latest -f Dockerfile.manager .
+	docker build -t jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):latest -f Dockerfile.manager .
+	docker push docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.1
+	docker tag docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.1 jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):latest
+	docker push docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):latest

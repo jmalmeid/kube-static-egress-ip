@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Nirmata inc.
+Copyright 2019 Joao Almeida
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1alpha1 "github.com/nirmata/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
-	"github.com/nirmata/kube-static-egress-ip/pkg/client/clientset/versioned/scheme"
+	v1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
+	"github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned/scheme"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
 )
@@ -30,7 +30,7 @@ type StaticegressipsV1alpha1Interface interface {
 	StaticEgressIPsGetter
 }
 
-// StaticegressipsV1alpha1Client is used to interact with features provided by the staticegressips.nirmata.io group.
+// StaticegressipsV1alpha1Client is used to interact with features provided by the staticegressips.io group.
 type StaticegressipsV1alpha1Client struct {
 	restClient rest.Interface
 }

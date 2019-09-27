@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Nirmata inc.
+Copyright 2019 Joao Almeida
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@ package v1alpha1
 import (
 	time "time"
 
-	egressipv1alpha1 "github.com/nirmata/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
-	versioned "github.com/nirmata/kube-static-egress-ip/pkg/client/clientset/versioned"
-	internalinterfaces "github.com/nirmata/kube-static-egress-ip/pkg/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/nirmata/kube-static-egress-ip/pkg/client/listers/egressip/v1alpha1"
+	egressipv1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
+	versioned "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned"
+	internalinterfaces "github.com/jmalmeid/kube-static-egress-ip/pkg/client/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/client/listers/egressip/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"

@@ -25,7 +25,7 @@ rules:
       - watch
       - update
   - apiGroups:
-    - "staticegressips.nirmata.io"
+    - "staticegressips.io"
     resources:
       - staticegressips
     verbs:

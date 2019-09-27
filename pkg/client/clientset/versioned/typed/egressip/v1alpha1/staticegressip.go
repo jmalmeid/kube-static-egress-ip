@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Nirmata inc.
+Copyright 2019 Joao Almeida
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1alpha1 "github.com/nirmata/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
-	scheme "github.com/nirmata/kube-static-egress-ip/pkg/client/clientset/versioned/scheme"
+	v1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
+	scheme "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -115,15 +115,15 @@ func (c *staticEgressIPs) Update(staticEgressIP *v1alpha1.StaticEgressIP) (resul
 		Namespace(c.ns).
 		Resource("staticegressips").
 		Name(staticEgressIP.Name).
+		//SubResource("status").
 		Body(staticEgressIP).
 		Do().
 		Into(result)
 	return
 }
 
-// UpdateStatus was generated because the type contains a Status member.
+// UpdateStatus was generated because the type contains a Gateway member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
 func (c *staticEgressIPs) UpdateStatus(staticEgressIP *v1alpha1.StaticEgressIP) (result *v1alpha1.StaticEgressIP, err error) {
 	result = &v1alpha1.StaticEgressIP{}
 	err = c.client.Put().

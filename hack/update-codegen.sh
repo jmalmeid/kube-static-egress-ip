@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2017 The Kubernetes Authors.
+# Copyright 2019 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${SCRIPT_ROOT}; ls -d -1 ./vendor/k8s.io/code-ge
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
-  github.com/nirmata/kube-static-egress-ip/pkg/client github.com/nirmata/kube-static-egress-ip/pkg/apis \
+  github.com/jmalmeid/kube-static-egress-ip/pkg/client github.com/jmalmeid/kube-static-egress-ip/pkg/apis \
   egressip:v1alpha1 \
   --output-base "$(dirname ${BASH_SOURCE})/../../../.." \
   --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt

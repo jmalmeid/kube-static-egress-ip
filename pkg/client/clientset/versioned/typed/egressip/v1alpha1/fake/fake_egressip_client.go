@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Nirmata inc.
+Copyright 2019 Joao Almeida
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha1 "github.com/nirmata/kube-static-egress-ip/pkg/client/clientset/versioned/typed/egressip/v1alpha1"
+	v1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned/typed/egressip/v1alpha1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

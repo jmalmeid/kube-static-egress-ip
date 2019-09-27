@@ -2,8 +2,10 @@ package gateway
 
 import (
 	"fmt"
+	"strconv"
 	"net"
 
+	"github.com/golang/glog"
 	"github.com/vishvananda/netlink"
 )
 
@@ -38,7 +40,9 @@ func getInterfaceForNetwork(staticIPAddr string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+        // Parece que tem um bug netlink.RouteGet
 	route, err := netlink.RouteGet(staticIP)
+        glog.Info("If Interface " + staticIP.String() + " Index " +  strconv.Itoa(route[0].LinkIndex))
 	if err != nil {
 		return "", err
 	}
@@ -56,7 +60,7 @@ func getInterfaceName(staticIP net.IP, routeIndex int) (string, error) {
 		return "", err
 	}
 	for _, iface := range ifaces {
-		if iface.Index == routeIndex {
+		//if iface.Index == routeIndex {
 			addresses, err := iface.Addrs()
 			if err != nil {
 				return "", err
@@ -66,7 +70,7 @@ func getInterfaceName(staticIP net.IP, routeIndex int) (string, error) {
 					return iface.Name, nil
 				}
 			}
-		}
+		//}
 	}
 	return "", fmt.Errorf("failed to find interface")
 }
@@ -77,6 +81,7 @@ func existsInSameNetwork(addr net.Addr, ip net.IP) bool {
 	if err != nil {
 		return false
 	}
+        glog.Info("If Interface " + inet.String() + " == " + ip.String() + " cond " + strconv.FormatBool(inet.Contains(ip)))
 	return inet.Contains(ip)
 }
 

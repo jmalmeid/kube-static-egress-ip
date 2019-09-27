@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Nirmata inc.
+Copyright 2019 Joao Almeida
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/nirmata/kube-static-egress-ip/pkg/client/clientset/versioned"
-	staticegressipsv1alpha1 "github.com/nirmata/kube-static-egress-ip/pkg/client/clientset/versioned/typed/egressip/v1alpha1"
-	fakestaticegressipsv1alpha1 "github.com/nirmata/kube-static-egress-ip/pkg/client/clientset/versioned/typed/egressip/v1alpha1/fake"
+	clientset "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned"
+	staticegressipsv1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned/typed/egressip/v1alpha1"
+	fakestaticegressipsv1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned/typed/egressip/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

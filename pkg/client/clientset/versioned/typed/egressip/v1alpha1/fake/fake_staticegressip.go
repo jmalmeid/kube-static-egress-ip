@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Nirmata inc.
+Copyright 2019 Joao Almeida
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha1 "github.com/nirmata/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
+	v1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -34,9 +34,9 @@ type FakeStaticEgressIPs struct {
 	ns   string
 }
 
-var staticegressipsResource = schema.GroupVersionResource{Group: "staticegressips.nirmata.io", Version: "v1alpha1", Resource: "staticegressips"}
+var staticegressipsResource = schema.GroupVersionResource{Group: "staticegressips.io", Version: "v1alpha1", Resource: "staticegressips"}
 
-var staticegressipsKind = schema.GroupVersionKind{Group: "staticegressips.nirmata.io", Version: "v1alpha1", Kind: "StaticEgressIP"}
+var staticegressipsKind = schema.GroupVersionKind{Group: "staticegressips.io", Version: "v1alpha1", Kind: "StaticEgressIP"}
 
 // Get takes name of the staticEgressIP, and returns the corresponding staticEgressIP object, and an error if there is any.
 func (c *FakeStaticEgressIPs) Get(name string, options v1.GetOptions) (result *v1alpha1.StaticEgressIP, err error) {
@@ -104,7 +104,7 @@ func (c *FakeStaticEgressIPs) Update(staticEgressIP *v1alpha1.StaticEgressIP) (r
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 func (c *FakeStaticEgressIPs) UpdateStatus(staticEgressIP *v1alpha1.StaticEgressIP) (*v1alpha1.StaticEgressIP, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(staticegressipsResource, "status", c.ns, staticEgressIP), &v1alpha1.StaticEgressIP{})
+		Invokes(testing.NewUpdateSubresourceAction(staticegressipsResource, "gateway", c.ns, staticEgressIP), &v1alpha1.StaticEgressIP{})
 
 	if obj == nil {
 		return nil, err

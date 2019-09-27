@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 )
 
 // GroupName is the group name for egress IP API
-const GroupName = "staticegressips.nirmata.io"
+const GroupName = "staticegressips.io"
 
 // SchemeGroupVersion is group version used to register these objects
 var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: "v1alpha1"}

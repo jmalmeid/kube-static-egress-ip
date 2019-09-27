@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) Nirmata
+# Copyright (c) Joao Almeida
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,20 +17,20 @@
 set -e
 
 GIT_COMMIT=$(git describe --tags --dirty --always)
-BUILD_FLAGS=(-ldflags="-w -X github.com/nirmata/kube-static-egress-ip/pkg/version.Version=${GIT_COMMIT}")
+BUILD_FLAGS=(-ldflags="-w -X github.com/jmalmeid/kube-static-egress-ip/pkg/version.Version=${GIT_COMMIT}")
 
 # Get rid of existing binary
 echo "Removing old static-egressip-gateway-manager binary"
 rm -f ./static-egressip-gateway-manager
 
-echo "Building Nirmata static egress IP gateway manager binary"
+echo "Building static egress IP gateway manager binary"
 # Build static-egressip-gateway-manager
 CGO_ENABLED=0 go build -o static-egressip-gateway-manager \
     "${BUILD_FLAGS[@]}" \
-    github.com/nirmata/kube-static-egress-ip/cmd/static-egressip-gateway-manager/...
+    github.com/jmalmeid/kube-static-egress-ip/cmd/static-egressip-gateway-manager/...
 
 if [ $? -eq 0 ]; then
-  echo "Building Nirmata static egress IP gateway manager binary successful."
+  echo "Building static egress IP gateway manager binary successful."
 else
-  echo "Building Nirmata static egress IP gateway manager binary failed."
+  echo "Building static egress IP gateway manager binary failed."
 fi

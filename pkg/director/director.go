@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	customStaticEgressIPRouteTableID   = "99"
-	customStaticEgressIPRouteTableName = "kube-static-egress-ip"
+	//customStaticEgressIPRouteTableID   = "99"
+	//customStaticEgressIPRouteTableName = "static-egress-ip"
 	staticEgressIPFWMARK               = "1000"
 	bypassCNIMasquradeChainName        = "STATIC-EGRESS-BYPASS-CNI"
 )
@@ -40,7 +40,7 @@ func NewEgressDirector() (*EgressDirector, error) {
 func (d *EgressDirector) Setup() error {
 
 	// create custom routing table for directing the traffic from director nodes to the gateway node
-	b, err := ioutil.ReadFile("/etc/iproute2/rt_tables")
+	/*b, err := ioutil.ReadFile("/etc/iproute2/rt_tables")
 	if err != nil {
 		return errors.New("Failed to add custom routing table in /etc/iproute2/rt_tables needed for policy routing for directing traffing to egress gateway" + err.Error())
 	}
@@ -56,19 +56,21 @@ func (d *EgressDirector) Setup() error {
 	}
 
 	// create policy based routing (ip rule) to lookup the custom routing table for FWMARK packets
-	out, err := exec.Command("ip", "rule", "list").Output()
+	out, err := exec.Command("ip", "rule", "list","table","setName").Output()
 	if err != nil {
 		return errors.New("Failed to verify if `ip rule` exists due to: " + err.Error())
 	}
-	if !strings.Contains(string(out), customStaticEgressIPRouteTableName) {
-		err = exec.Command("ip", "rule", "add", "prio", "32764", "fwmark", staticEgressIPFWMARK, "table", customStaticEgressIPRouteTableName).Run()
+	
+	if !strings.Contains(string(out), setName) {
+		glog.Infof("Adding rule add prio fwmark %s table %s"string(staticEgressIPFWMARK),setName)
+		err = exec.Command("ip", "rule", "add", "prio", "32764", "fwmark", staticEgressIPFWMARK, "table", setName).Run()
 		if err != nil {
 			return errors.New("Failed to add policy rule to lookup traffic marked with fwmark " + staticEgressIPFWMARK + " to the custom " + " routing table due to " + err.Error())
 		}
-	}
+	} */
 
 	// setup a chain in nat table to bypass the CNI masqurade for the traffic bound to egress gateway
-	err = d.ipt.NewChain("nat", bypassCNIMasquradeChainName)
+	err := d.ipt.NewChain("nat", bypassCNIMasquradeChainName)
 	if err != nil && err.(*iptables.Error).ExitStatus() != 1 {
 		return errors.New("Failed to add a " + bypassCNIMasquradeChainName + " chain in NAT table required to bypass CNI masqurading due to" + err.Error())
 	}
@@ -89,11 +91,51 @@ func (d *EgressDirector) Setup() error {
 	return nil
 }
 
+func (d *EgressDirector) creatingRoutingTable(setID string,setName string) error {
+	
+        // create custom routing table for directing the traffic from director nodes to the gateway node
+        b, err := ioutil.ReadFile("/etc/iproute2/rt_tables")
+        if err != nil {
+                return errors.New("Failed to add custom routing table in /etc/iproute2/rt_tables needed for policy routing for directing traffing to egress gateway" + err.Error())
+        }
+        if !strings.Contains(string(b), setName) {
+                f, err := os.OpenFile("/etc/iproute2/rt_tables", os.O_APPEND|os.O_WRONLY, 0600)
+                if err != nil {
+                        return errors.New("Failed to open /etc/iproute2/rt_tables to verify custom routing table " + setName + " required for static egress IP functionality due to " + err.Error())
+                }
+                defer f.Close()
+                if _, err = f.WriteString(setID + " " + setName + "\n"); err != nil {
+                        return errors.New("Failed to add custom routing table " + setName + " in /etc/iproute2/rt_tables needed for policy routing due to " + err.Error())
+                }
+        }
+
+        // create policy based routing (ip rule) to lookup the custom routing table for FWMARK packets
+        out, err := exec.Command("ip", "rule", "list","table",setName).Output()
+        if err != nil {
+                return errors.New("Failed to verify if `ip rule` exists due to: " + err.Error())
+        }
+        if !strings.Contains(string(out), "fwmark") {
+		//glog.Infof("List output: %s",string(out))
+		glog.Infof("Adding rule creating add prio 32764 fwmark %s table %s",string(staticEgressIPFWMARK),setName)
+                err = exec.Command("ip", "rule", "add", "prio", "32764", "fwmark", staticEgressIPFWMARK, "table", setName).Run()
+                if err != nil {
+                        return errors.New("Failed to add policy rule to lookup traffic marked with fwmark " + staticEgressIPFWMARK + " to the custom " + " routing table due to " + err.Error())
+                }
+        }
+
+	return nil
+}
+
 // AddRouteToGateway adds a routes on the director node to redirect traffic from a set of pod IP's
 // (selected by service name in the rule of staticegressip CRD object) to a specific
 // destination CIDR to be directed to egress gateway node
-func (d *EgressDirector) AddRouteToGateway(setName string, sourceIPs []string, destinationIP, egressGateway string) error {
+func (d *EgressDirector) AddRouteToGateway(setID string,setName string, sourceIPs []string, destinationIP, egressGateway string) error {
 
+	// Create Routing Table
+	err := d.creatingRoutingTable(setID,setName)
+	if err != nil {
+		return errors.New("Failed to create routing table " + setName + " due to %" + err.Error())
+	}
 	// create IPset for the set of sourceIP's
 	set, err := ipset.New(setName, "hash:ip", &ipset.Params{})
 	if err != nil {
@@ -139,14 +181,15 @@ func (d *EgressDirector) AddRouteToGateway(setName string, sourceIPs []string, d
 	}
 
 	// add routing entry in custom routing table to forward destinationIP to egressGateway
-	out, err := exec.Command("ip", "route", "list", "table", customStaticEgressIPRouteTableName).Output()
+	out, err := exec.Command("ip", "route", "list", "table", setName).Output()
 	if err != nil {
-		return errors.New("Failed to verify required default route to gatewat exists. " + err.Error())
+		return errors.New("Failed to verify required default route to gateway exists. " + err.Error())
 	}
-
-	if !strings.Contains(string(out), destinationIP) {
-		if err = exec.Command("ip", "route", "add", destinationIP, "via", egressGateway, "table", customStaticEgressIPRouteTableName).Run(); err != nil {
-			return errors.New("Failed to add route in custom route table due to: " + err.Error())
+        
+	if !strings.Contains(string(out), strings.Replace(destinationIP,"0.0.0.0/0","default",1)) && strings.Contains(egressGateway,".") {
+		glog.Infof("Adding routing ip route add %s via %s table %s",destinationIP,egressGateway,setName)
+		if err = exec.Command("ip", "route", "add", destinationIP, "via", egressGateway, "table", setName).Run(); err != nil {
+	 		return errors.New("Failed to add route in custom route table due to: " + err.Error())
 		}
 	}
 
@@ -156,7 +199,7 @@ func (d *EgressDirector) AddRouteToGateway(setName string, sourceIPs []string, d
 }
 
 // DeleteRouteToGateway removes the route routes on the director node to redirect traffic to gateway node
-func (d *EgressDirector) DeleteRouteToGateway(setName string, destinationIP, egressGateway string) error {
+func (d *EgressDirector) DeleteRouteToGateway(setID string,setName string, sourceIPs []string,destinationIP, egressGateway string) error {
 
 	set, err := ipset.New(setName, "hash:ip", &ipset.Params{})
 	if err != nil {
@@ -191,26 +234,32 @@ func (d *EgressDirector) DeleteRouteToGateway(setName string, destinationIP, egr
 	}
 
 	// add routing entry in custom routing table to forward destinationIP to egressGateway
-	out, err := exec.Command("ip", "route", "list", "table", customStaticEgressIPRouteTableName).Output()
+	_, err = exec.Command("ip", "route", "list", "table", setName).Output()
 	if err != nil {
 		return errors.New("Failed to verify required default route to gatewat exists. " + err.Error())
 	}
-	if !strings.Contains(string(out), destinationIP) {
-		if err = exec.Command("ip", "route", "delete", destinationIP, "via", egressGateway, "table", customStaticEgressIPRouteTableName).Run(); err != nil {
-			return errors.New("Failed to delete route in custom route table due to: " + err.Error())
-		}
-		glog.Infof("deleted route")
-	}
+	glog.Infof("Deleting ip route delete %s via %s table %s",destinationIP,egressGateway,setName)
+        exec.Command("ip", "route", "delete", destinationIP, "via", egressGateway, "table", setName).Run()
+        glog.Infof("deleted route")
 
-	err = set.Destroy()
-	if err != nil {
-		return errors.New("Failed to delete ipset due to " + err.Error())
-	}
+        // create policy based routing (ip rule) to lookup the custom routing table for FWMARK packets
+        _, err = exec.Command("ip", "rule", "list","table",setName).Output()
+        if err != nil {
+                return errors.New("Failed to verify if `ip rule` exists due to: " + err.Error())
+        }
+        
+	glog.Infof("Deleting rule delete prio 32764 fwmark %s table %s",string(staticEgressIPFWMARK),setName)
+        exec.Command("ip", "rule", "delete", "prio", "32764", "fwmark", staticEgressIPFWMARK, "table", setName).Run()
+
+        err = set.Destroy()
+        if err != nil {
+                return errors.New("Failed to delete ipset due to " + err.Error())
+        }
 
 	return nil
 }
 
-func (d *EgressDirector) ClaerStaleRouteToGateway(setName string, destinationIP, egressGateway string) error {
+func (d *EgressDirector) ClearStaleRouteToGateway(setID string,setName string, destinationIP, egressGateway string) error {
 
 	// create iptables rule in mangle table PREROUTING chain to match src to ipset created and destination
 	// matching  destinationIP then fwmark the packets
@@ -240,16 +289,23 @@ func (d *EgressDirector) ClaerStaleRouteToGateway(setName string, destinationIP,
 	}
 
 	// add routing entry in custom routing table to forward destinationIP to egressGateway
-	out, err := exec.Command("ip", "route", "list", "table", customStaticEgressIPRouteTableName).Output()
+	_, err = exec.Command("ip", "route", "list", "table", setName).Output()
 	if err != nil {
 		return errors.New("Failed to verify required default route to gatewat exists. " + err.Error())
 	}
-	if !strings.Contains(string(out), destinationIP) {
-		if err = exec.Command("ip", "route", "delete", destinationIP, "via", egressGateway, "table", customStaticEgressIPRouteTableName).Run(); err != nil {
-			return errors.New("Failed to delete route in custom route table due to: " + err.Error())
-		}
-		glog.Infof("deleted route")
-	}
+
+	glog.Infof("Deleting ip route delete %s via %s table %s",destinationIP,egressGateway,setName)
+	exec.Command("ip", "route", "delete", destinationIP, "via", egressGateway, "table", setName).Run()
+	glog.Infof("deleted route")
+
+        // delete policy based routing (ip rule) to lookup the custom routing table for FWMARK packets
+        _, err = exec.Command("ip", "rule", "list","table",setName).Output()
+        if err != nil {
+                return errors.New("Failed to verify if `ip rule` exists due to: " + err.Error())
+        }
+        
+	glog.Infof("Deleting rule delete prio 32764 fwmark %s table %s",string(staticEgressIPFWMARK),setName)
+        exec.Command("ip", "rule", "delete", "prio", "32764", "fwmark", staticEgressIPFWMARK, "table", setName).Run()
 
 	return nil
 }

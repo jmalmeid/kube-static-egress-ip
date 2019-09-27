@@ -1,4 +1,4 @@
-# kube-static-egress-ip
+# static-egress-ip
 
 A Kubernetes CRD to manage static egress IP addresses for workloads
 
@@ -14,12 +14,12 @@ One common solution offered across CNIs is to masqurade egress traffic from pods
 
 ### Solution
 
-*kube-static-egress-ip* provides a solution with which a cluster operator can define an egress rule where a set of pods whose outbound traffic to a specified destination is always SNAT'ed with a configured static egress IP. *kube-static-egress-ip* provides this functionality in Kubernetes native way using custom rerources.
+*static-egress-ip* provides a solution with which a cluster operator can define an egress rule where a set of pods whose outbound traffic to a specified destination is always SNAT'ed with a configured static egress IP. *static-egress-ip* provides this functionality in Kubernetes native way using custom rerources.
 
-For e.g. below is a sample definition of a `staticegressip` custom resource defined by *kube-static-egress-ip*. In this example all outbound traffic, from the pods belonging to service `frontend`, to destination IP `4.2.2.2` will be SNAT'ed to use 100.137.146.100 as source IP. So all the traffic from selected pods to 4.2.2.2 is seen as if they are all coming from 100.137.146.100
+For e.g. below is a sample definition of a `staticegressip` custom resource defined by *static-egress-ip*. In this example all outbound traffic, from the pods belonging to service `frontend`, to destination IP `4.2.2.2` will be SNAT'ed to use 100.137.146.100 as source IP. So all the traffic from selected pods to 4.2.2.2 is seen as if they are all coming from 100.137.146.100
 
 ```yaml
-apiVersion: staticegressips.nirmata.io/v1alpha1
+apiVersion: staticegressips.io/v1alpha1
 kind: StaticEgressIP
 metadata:
   name: eip
@@ -34,14 +34,14 @@ spec:
 
 ### How it works
 
-*kube-static-egress-ip* is run as a daemon-set on the cluster. Each node takes a role of a *director* or a *gateway*. Director nodes redirect traffic from the pods that need static egress IP to one of the nodes in cluster acting as Gateway. A Gateway node is setup to perform SNAT of the traffic from the pods to use configured static egress IP as the source IP. Return traffic is sent back to Director node running the pod. The following diagram depicts life of a packet originating from a pod that needs a static egress IP.
+*static-egress-ip* is run as a daemon-set on the cluster. Each node takes a role of a *director* or a *gateway*. Director nodes redirect traffic from the pods that need static egress IP to one of the nodes in cluster acting as Gateway. A Gateway node is setup to perform SNAT of the traffic from the pods to use configured static egress IP as the source IP. Return traffic is sent back to Director node running the pod. The following diagram depicts life of a packet originating from a pod that needs a static egress IP.
 
 <p align="center">
   <img src="docs/img/static-egress-ip.jpg"> </image>
 </p>
 
 1. pod 2 sends traffic to a destination.
-2. director node (is setup by `kube-static-egress-ip` to redirect) redirects the packets to gateway node if pod 2 is sending traffic to a specific destination
+2. director node (is setup by `static-egress-ip` to redirect) redirects the packets to gateway node if pod 2 is sending traffic to a specific destination
 3. node acting as `gateway` recieves the traffic and perform SNAT (with configured egress IP) and sends out the packet to destination
 4. node recieves the response packet from the destination
 5. node performs DNAT (to pod IP) and forwards the packet to director node
@@ -51,24 +51,24 @@ Plese see the [design](./docs/design.md) details to understand in detail how the
 
 ### Installation
 
-*kube-static-egress-ip* is pretty easy to get started with.
+*static-egress-ip* is pretty easy to get started with.
 
 Install the `staticegressip` Custom Resource Definition (CRD) as follows:
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/nirmata/kube-static-egress-ip/master/config/static-egressip-crd.yaml
+kubectl apply -f https://raw.githubusercontent.com/jmalmeid/kube-static-egress-ip/master/config/static-egressip-crd.yaml
 ```
 
 Create necessary RBAC to run the controllers
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/nirmata/kube-static-egress-ip/master/config/static-egressip-rbac.yaml
+kubectl apply -f https://raw.githubusercontent.com/jmalmeid/kube-static-egress-ip/master/config/static-egressip-rbac.yaml
 ```
 
 Next you need to install deployment for `static-egressip-gateway-manager` which automatically selects nodes to act as gateway for a `StaticEgressIP` custom resource
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/nirmata/kube-static-egress-ip/master/config/static-egressip-gateway-manager.yaml
+kubectl apply -f https://raw.githubusercontent.com/jmalmeid/kube-static-egress-ip/master/config/static-egressip-gateway-manager.yaml
 ```
 
 You shall see the pod running for the deployment created for `static-egressip-gateway-manager`
@@ -85,7 +85,7 @@ static-egressip-gateway-manager-d665565cb-xwdgr   1/1       Running   0         
 Finally you need to install a daemonset which runs `static-egressip-controller` on each node configures a node to act as director or gateway for a `StaticEgressIP` custom resource.
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/nirmata/kube-static-egress-ip/master/config/static-egressip-controller.yaml
+kubectl apply -f https://raw.githubusercontent.com/jmalmeid/kube-static-egress-ip/master/config/static-egressip-controller.yaml
 ```
 
 You shall see the pods running on each node of the cluster. For e.g.

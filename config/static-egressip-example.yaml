@@ -1,4 +1,4 @@
-apiVersion: staticegressips.nirmata.io/v1alpha1
+apiVersion: staticegressips.io/v1alpha1
 kind: StaticEgressIP
 metadata:
   name: test

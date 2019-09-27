@@ -69,7 +69,7 @@ func GetGatewayIP() (string, error) {
 		return "", err
 	}
 	for _, iface := range ifaces {
-		if iface.Name == "flannel.1" {
+		if iface.Name == "tun0" {
 			addresses, err := iface.Addrs()
 			if err != nil {
 				return "", err

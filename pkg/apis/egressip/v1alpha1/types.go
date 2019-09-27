@@ -36,21 +36,21 @@ type StaticEgressIP struct {
 type StaticEgressIPSpec struct {
 	Rules []Rule `json:"rules"`
 }
-
 type Rule struct {
 	ServiceName string `json:"service-name"`
 	EgressIP    string `json:"egressip"`
 	Cidr        string `json:"cidr"`
 }
-
-// StaticEgressIPStatus is the status for a StaticEgressIP resource
+// StaticEgressIPStatus is the spec for a StaticEgressIP resource
 type StaticEgressIPStatus struct {
+	Gateways []Gateway `json:"gateways"`
+}
+type Gateway struct {
 	GatewayNode string `json:"gateway-node"`
 	GatewayIP string `json:"gateway-ip"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // StaticEgressIPList is a list of StaticEgressIP resources
 type StaticEgressIPList struct {
 	metav1.TypeMeta `json:",inline"`

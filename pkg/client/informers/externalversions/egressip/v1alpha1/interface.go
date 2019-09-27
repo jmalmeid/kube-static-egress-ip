@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Nirmata inc.
+Copyright 2019 Joao Almeida
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	internalinterfaces "github.com/nirmata/kube-static-egress-ip/pkg/client/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/jmalmeid/kube-static-egress-ip/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.
