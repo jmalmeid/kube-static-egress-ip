@@ -140,7 +140,6 @@ Here is quick status of the project:
 - supports selection of pods selected by provided Kubernetes service name. 
 
 ## New Features
-- support more than a single node to act as Gateway
+- support multiples nodes to act as Gateway, and with automatic FailOver (OpenShift Engress with network policy or multitency)
 - support CNI's that provide overlay solution like OVS, Flannel with vxlan backend, Weave etc
-- when a node acting as Gateway dies, reconfigure so that a new node performs Gateway functionliaty.
-- support leader election among the nodes so that operator does not have to choose and configure a node a Gateway
+
