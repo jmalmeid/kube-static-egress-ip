@@ -30,7 +30,7 @@ controller-container:
 	docker push docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):latest
 
 manager-container:
-	docker build -t jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):latest -f Dockerfile.manager .
+	docker build -t jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.1 -f Dockerfile.manager .
 	docker push docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.1
 	docker tag docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.1 jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):latest
 	docker push docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):latest
