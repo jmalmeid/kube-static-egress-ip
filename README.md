@@ -16,7 +16,7 @@ One common solution offered across CNIs is to masqurade egress traffic from pods
 
 *static-egress-ip* provides a solution with which a cluster operator can define an egress rule where a set of pods whose outbound traffic to a specified destination is always SNAT'ed with a configured static egress IP. *static-egress-ip* provides this functionality in Kubernetes native way using custom rerources.
 
-For e.g. below is a sample definition of a `staticegressip` custom resource defined by *static-egress-ip*. In this example all outbound traffic, from the pods belonging to service `frontend`, to destination IP `4.2.2.2` will be SNAT'ed to use 100.137.146.100 as source IP. So all the traffic from selected pods to 4.2.2.2 is seen as if they are all coming from 100.137.146.100
+For e.g. below is a sample definition of a `staticegressip` custom resource defined by *static-egress-ip*. In this example all outbound traffic, from the pods belonging to service `frontend`, to all destination IP `0.0.0.0/0` will be SNAT'ed to use redirect to 10.0.0.3 as source IP. So all the traffic from selected pods to 0.0.0.0/0 is seen as if they are all coming from 10.0.0.3
 
 ```yaml
 apiVersion: staticegressips.io/v1alpha1
@@ -25,9 +25,9 @@ metadata:
   name: eip
 spec:
   rules:
-  - egressip: 100.137.146.100
+  - egressip: 10.0.0.3
     service-name: frontend
-    cidr: 4.2.2.2/32
+    cidr: 0.0.0.0/0
 ```
 
 ## Getting Started
@@ -108,9 +108,9 @@ You can then create a `staticegressip` resource object like any other Kubernetes
 ```yaml
 spec:
   rules:
-  - egressip: 100.137.146.100
+  - egressip: 10.0.0.3
     service-name: frontend
-    cidr: 4.2.2.2/32
+    cidr: 0.0.0.0/0
 ```
 
 Spec consists of one or more `rule`'s. Each rule defines the following"
