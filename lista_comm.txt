@@ -1,2 +1,0 @@
-:1,$s/jmalmeid\/static-egress-ip/jmalmeid\/kube-static-egress-ip/g
-:wq
