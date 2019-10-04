@@ -19,8 +19,8 @@ limitations under the License.
 package staticegressips
 
 import (
-	v1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/client/informers/externalversions/egressip/v1alpha1"
-	internalinterfaces "github.com/jmalmeid/kube-static-egress-ip/pkg/client/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/jmalmeid/static-egress-ip/pkg/client/informers/externalversions/egressip/v1alpha1"
+	internalinterfaces "github.com/jmalmeid/static-egress-ip/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

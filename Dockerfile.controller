@@ -3,11 +3,11 @@ MAINTAINER Joao Almeida <joao_m_almeida@hotmail.com>
 
 ENV GOPATH=/workspace/golang/
 
-RUN mkdir -p /workspace/golang/src/github.com/jmalmeid/kube-static-egress-ip
+RUN mkdir -p /workspace/golang/src/github.com/jmalmeid/static-egress-ip
 
-ADD $PWD /workspace/golang/src/github.com/jmalmeid/kube-static-egress-ip
+ADD $PWD /workspace/golang/src/github.com/jmalmeid/static-egress-ip
 
-WORKDIR /workspace/golang/src/github.com/jmalmeid/kube-static-egress-ip/cmd/static-egressip-controller/
+WORKDIR /workspace/golang/src/github.com/jmalmeid/static-egress-ip/cmd/static-egressip-controller/
 
 RUN CGO_ENABLED=0 go install -ldflags "-s" -v
 

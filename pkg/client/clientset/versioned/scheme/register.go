@@ -19,7 +19,7 @@ limitations under the License.
 package scheme
 
 import (
-	staticegressipsv1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
+	staticegressipsv1alpha1 "github.com/jmalmeid/static-egress-ip/pkg/apis/egressip/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

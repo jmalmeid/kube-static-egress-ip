@@ -21,11 +21,11 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	clientset "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned"
-	informers "github.com/jmalmeid/kube-static-egress-ip/pkg/client/informers/externalversions"
-	"github.com/jmalmeid/kube-static-egress-ip/pkg/ha"
-	"github.com/jmalmeid/kube-static-egress-ip/pkg/signals"
-	"github.com/jmalmeid/kube-static-egress-ip/pkg/version"
+	clientset "github.com/jmalmeid/static-egress-ip/pkg/client/clientset/versioned"
+	informers "github.com/jmalmeid/static-egress-ip/pkg/client/informers/externalversions"
+	"github.com/jmalmeid/static-egress-ip/pkg/ha"
+	"github.com/jmalmeid/static-egress-ip/pkg/signals"
+	"github.com/jmalmeid/static-egress-ip/pkg/version"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"

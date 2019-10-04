@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned"
-	egressip "github.com/jmalmeid/kube-static-egress-ip/pkg/client/informers/externalversions/egressip"
-	internalinterfaces "github.com/jmalmeid/kube-static-egress-ip/pkg/client/informers/externalversions/internalinterfaces"
+	versioned "github.com/jmalmeid/static-egress-ip/pkg/client/clientset/versioned"
+	egressip "github.com/jmalmeid/static-egress-ip/pkg/client/informers/externalversions/egressip"
+	internalinterfaces "github.com/jmalmeid/static-egress-ip/pkg/client/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

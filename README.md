@@ -56,19 +56,19 @@ Plese see the [design](./docs/design.md) details to understand in detail how the
 Install the `staticegressip` Custom Resource Definition (CRD) as follows:
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/jmalmeid/kube-static-egress-ip/master/config/static-egressip-crd.yaml
+kubectl apply -f https://raw.githubusercontent.com/jmalmeid/static-egress-ip/master/config/static-egressip-crd.yaml
 ```
 
 Create necessary RBAC to run the controllers
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/jmalmeid/kube-static-egress-ip/master/config/static-egressip-rbac.yaml
+kubectl apply -f https://raw.githubusercontent.com/jmalmeid/static-egress-ip/master/config/static-egressip-rbac.yaml
 ```
 
 Next you need to install deployment for `static-egressip-gateway-manager` which automatically selects nodes to act as gateway for a `StaticEgressIP` custom resource
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/jmalmeid/kube-static-egress-ip/master/config/static-egressip-gateway-manager.yaml
+kubectl apply -f https://raw.githubusercontent.com/jmalmeid/static-egress-ip/master/config/static-egressip-gateway-manager.yaml
 ```
 
 You shall see the pod running for the deployment created for `static-egressip-gateway-manager`
@@ -85,7 +85,7 @@ static-egressip-gateway-manager-d665565cb-xwdgr   1/1       Running   0         
 Finally you need to install a daemonset which runs `static-egressip-controller` on each node configures a node to act as director or gateway for a `StaticEgressIP` custom resource.
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/jmalmeid/kube-static-egress-ip/master/config/static-egressip-controller.yaml
+kubectl apply -f https://raw.githubusercontent.com/jmalmeid/static-egress-ip/master/config/static-egressip-controller.yaml
 ```
 
 You shall see the pods running on each node of the cluster. For e.g.

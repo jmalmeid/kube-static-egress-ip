@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
-	egressipAPI "github.com/jmalmeid/kube-static-egress-ip/pkg/apis/egressip/v1alpha1"
-	clientset "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned"
-	listers "github.com/jmalmeid/kube-static-egress-ip/pkg/client/listers/egressip/v1alpha1"
+	egressipAPI "github.com/jmalmeid/static-egress-ip/pkg/apis/egressip/v1alpha1"
+	clientset "github.com/jmalmeid/static-egress-ip/pkg/client/clientset/versioned"
+	listers "github.com/jmalmeid/static-egress-ip/pkg/client/listers/egressip/v1alpha1"
 	v1core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"

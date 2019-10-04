@@ -17,7 +17,7 @@
 set -e
 
 GIT_COMMIT=$(git describe --tags --dirty --always)
-BUILD_FLAGS=(-ldflags="-w -X github.com/jmalmeid/kube-static-egress-ip/pkg/version.Version=${GIT_COMMIT}")
+BUILD_FLAGS=(-ldflags="-w -X github.com/jmalmeid/static-egress-ip/pkg/version.Version=${GIT_COMMIT}")
 
 # Get rid of existing binary
 echo "Removing Old egressip-controller binaries"
@@ -27,7 +27,7 @@ echo "Building static egress IP binaries"
 # Build static-egressip-controller binary
 CGO_ENABLED=0 go build -o static-egressip-controller \
     "${BUILD_FLAGS[@]}" \
-    github.com/jmalmeid/kube-static-egress-ip/cmd/static-egressip-controller/...
+    github.com/jmalmeid/static-egress-ip/cmd/static-egressip-controller/...
 
 if [ $? -eq 0 ]; then
   echo "Building static egress IP controller binary successful."

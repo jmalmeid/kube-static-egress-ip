@@ -19,7 +19,7 @@ limitations under the License.
 package versioned
 
 import (
-	staticegressipsv1alpha1 "github.com/jmalmeid/kube-static-egress-ip/pkg/client/clientset/versioned/typed/egressip/v1alpha1"
+	staticegressipsv1alpha1 "github.com/jmalmeid/static-egress-ip/pkg/client/clientset/versioned/typed/egressip/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
