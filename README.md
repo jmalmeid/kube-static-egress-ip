@@ -27,7 +27,7 @@ spec:
   rules:
   - egressip: 10.0.0.3
     routing-table-id: 10
-    routing-table-name: vlan_frontend
+    routing-table-name: vlan-frontend
     service-name: frontend
     cidr: 0.0.0.0/0
 ```
@@ -111,6 +111,8 @@ You can then create a `staticegressip` resource object like any other Kubernetes
 spec:
   rules:
   - egressip: 10.0.0.3
+    routing-table-id: 10
+    routing-table-name: vlan-frontend
     service-name: frontend
     cidr: 0.0.0.0/0
 ```
