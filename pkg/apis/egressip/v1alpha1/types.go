@@ -38,6 +38,9 @@ type StaticEgressIPSpec struct {
 }
 type Rule struct {
 	ServiceName string `json:"service-name"`
+        GatewayLabel string `json:"gateway-label"`
+        RoutingTableID string `json:"routing-table-id"`
+        RoutingTable string `json:"routing-table"`
 	EgressIP    string `json:"egressip"`
 	Cidr        string `json:"cidr"`
 }
