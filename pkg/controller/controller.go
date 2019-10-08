@@ -43,7 +43,7 @@ import (
 
 const (
 	controllerAgentName    = "egressip-controller"
-	egressGatewayLabel = "io/staticegressips-gateway"
+	//egressGatewayLabel = "io/staticegressips-gateway"
 )
 
 // Controller is the controller implementation for StaticEgressIP resources

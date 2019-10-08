@@ -40,7 +40,7 @@ import (
 
 const (
 	nodeRoleMasterLabel = "node-role.kubernetes.io/master"
-	nodeGatewayLabel = "io/staticegressips-gateway"
+	//nodeGatewayLabel = "io/staticegressips-gateway"
 )
 
 // GatewayManager decides which node to act as gateway in the cluster
@@ -221,7 +221,7 @@ func (manager *GatewayManager) chooseGatewayNode(staticEgressIP *egressipAPI.Sta
 			}
 		}
 		if nodeReady {
-                        _, isGateway := node.Labels[nodeGatewayLabel]
+                        _, isGateway := node.Labels[staticEgressIP.Spec.GatewayLabel]
                         if isGateway {
 				readyNodes = append(readyNodes, string(node.UID))
                         }

@@ -114,7 +114,6 @@ func (gateway *EgressGateway) creatingRoutingTable(routingID string,routingName 
                 } 
         }
 
-
         return nil
 }
 

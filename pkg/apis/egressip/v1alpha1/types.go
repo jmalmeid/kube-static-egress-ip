@@ -34,11 +34,11 @@ type StaticEgressIP struct {
 
 // StaticEgressIPSpec is the spec for a StaticEgressIP resource
 type StaticEgressIPSpec struct {
+        GatewayLabel string `json:"gateway-label"`
 	Rules []Rule `json:"rules"`
 }
 type Rule struct {
 	ServiceName string `json:"service-name"`
-        GatewayLabel string `json:"gateway-label"`
         RoutingTableID string `json:"routing-table-id"`
         RoutingTable string `json:"routing-table"`
 	EgressIP    string `json:"egressip"`
