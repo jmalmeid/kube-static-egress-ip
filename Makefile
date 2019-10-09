@@ -24,13 +24,13 @@ update:
 	./hack/update-codegen.sh
 
 controller-container:
-	docker build -t jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):1.1 -f Dockerfile.controller .
-	docker push docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):1.1
-	docker tag docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):1.1 docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):latest
+	docker build -t jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):1.2 -f Dockerfile.controller .
+	docker push docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):1.2
+	docker tag docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):1.2 docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):latest
 	docker push docker.io/jmalmeid/$(EGRESSIP_CONTROLLER_IMAGE):latest
 
 manager-container:
-	docker build -t jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.1 -f Dockerfile.manager .
-	docker push docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.1
-	docker tag docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.1 jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):latest
+	docker build -t jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.2 -f Dockerfile.manager .
+	docker push docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.2
+	docker tag docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):1.2 jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):latest
 	docker push docker.io/jmalmeid/$(EGRESSIP_GATEWAY_MANAGER_IMAGE):latest
