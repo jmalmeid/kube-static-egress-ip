@@ -24,8 +24,8 @@ kind: StaticEgressIP
 metadata:
   name: eip
 spec:
-  rules:
   gateway-label: "io/staticegressips-gateway"
+  rules:
   - egressip: 10.0.0.3
     routing-table-id: "10"
     routing-table: vlan-frontend
@@ -109,8 +109,8 @@ At this point you are all set to deploy `staticegressip` objects and see things 
 You can then create a `staticegressip` resource object like any other Kubernetes resource object
 
 ```yaml
-  rules:
   gateway-label: "io/staticegressips-gateway"
+  rules:
   - egressip: 10.0.0.3
     routing-table-id: "10"
     routing-table: vlan-frontend
