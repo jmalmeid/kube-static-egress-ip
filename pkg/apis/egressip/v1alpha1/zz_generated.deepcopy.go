@@ -21,6 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"strconv"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -61,6 +62,9 @@ func (in *StaticEgressIP) DeepCopyInto(out *StaticEgressIP) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	version, _ := strconv.Atoi(in.ObjectMeta.GetResourceVersion())
+	version = version + 1
+	out.ObjectMeta.SetResourceVersion(strconv.Itoa(version))
 	in.Spec.DeepCopyInto(&out.Spec)
 	in.Status.DeepCopyInto(&out.Status)
 	return

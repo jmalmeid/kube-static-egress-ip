@@ -21,15 +21,13 @@ type EgressGateway struct {
 }
 
 const (
-	defaultTimeOut            = 0
-	defaultNATIptable         = "nat"
-	egressGatewayNATChainName = "STATIC-EGRESS-NAT-CHAIN"
-	defaultEgressChainName    = "STATIC-EGRESS-IP-CHAIN"
-	egressGatewayFWChainName  = "STATIC-EGRESS-FORWARD-CHAIN"
-	defaultPostRoutingChain   = "POSTROUTING"
-	//customStaticEgressIPRouteTableID   = "99"
-	staticEgressIPFWMARK               = "1000"
-	//customStaticEgressIPRouteTableName = "static-egress-ip"
+	defaultTimeOut            int    = 0
+	defaultNATIptable         string = "nat"
+	egressGatewayNATChainName string = "STATIC-EGRESS-NAT-CHAIN"
+	defaultEgressChainName    string = "STATIC-EGRESS-IP-CHAIN"
+	egressGatewayFWChainName  string = "STATIC-EGRESS-FORWARD-CHAIN"
+	defaultPostRoutingChain   string = "POSTROUTING"
+	bypassCNIMasquradeChainName string = "STATIC-EGRESS-BYPASS-CNI"
 )
 
 // NewEgressGateway is a constructor for EgressGateway interface
@@ -41,48 +39,50 @@ func NewEgressGateway() (*EgressGateway, error) {
 	return &EgressGateway{ipt: ipt}, nil
 }
 
-func (gateway *EgressGateway) Setup() error {
+func (d *EgressGateway) Setup() error {
 
 	// setup a chain to hold rules to accept forwarding traffic from director nodes with
 	// out which default policy FORWARD chain of filter table drops the packet
-	err := gateway.createChainIfNotExist("filter", egressGatewayFWChainName)
+	err := d.createChainIfNotExist("filter", egressGatewayFWChainName)
 	if err != nil {
 		return errors.New("Failed to add a chain in filter table required to permit forwarding traffic from director nodes" + err.Error())
 	}
 
 	ruleSpec := []string{"-j", egressGatewayFWChainName}
-	hasRule, err := gateway.ipt.Exists("filter", "FORWARD", ruleSpec...)
+	hasRule, err := d.ipt.Exists("filter", "FORWARD", ruleSpec...)
 	if err != nil {
 		return errors.New("Failed to verify rule exists in FORWARD chain of filter table to permit forward traffic from the directors" + err.Error())
 	}
 	if !hasRule {
-		err = gateway.ipt.Append("filter", "FORWARD", ruleSpec...)
+		err = d.ipt.Append("filter", "FORWARD", ruleSpec...)
 		if err != nil {
 			return errors.New("Failed to add iptables command to permit traffic from directors to be forwrded in filter chain" + err.Error())
 		}
 	}
 
 	// setup a chain in nat table to bypass run through the rules to snat traffic from the pods that need static egress ip
-	err = gateway.ipt.NewChain("nat", egressGatewayNATChainName)
+	err = d.ipt.NewChain("nat", egressGatewayNATChainName)
 	if err != nil && err.(*iptables.Error).ExitStatus() != 1 {
 		return errors.New("Failed to add a " + egressGatewayNATChainName + " chain in NAT table" + err.Error())
 	}
 	ruleSpec = []string{"-j", egressGatewayNATChainName}
-	hasRule, err = gateway.ipt.Exists("nat", "POSTROUTING", ruleSpec...)
+	hasRule, err = d.ipt.Exists("nat", "POSTROUTING", ruleSpec...)
 	if err != nil {
 		return errors.New("Failed to verify  rule exists in POSTROUTING chain of nat table due to " + err.Error())
 	}
 	if !hasRule {
-		err = gateway.ipt.Insert("nat", "POSTROUTING", 1, ruleSpec...)
+		err = d.ipt.Insert("nat", "POSTROUTING", 1, ruleSpec...)
 		if err != nil {
 			return errors.New("Failed to run iptables command to add a rule to jump to STATIC-EGRESS-NAT-CHAIN chain due to " + err.Error())
 		}
 	}
 
+	glog.Infof("Node has been setup for static egress IP gateway functionality successfully.")
+
 	return nil
 }
 
-func (gateway *EgressGateway) creatingRoutingTable(routingID string,routingName string) error {
+func (d *EgressGateway) creatingRoutingTable(routingID string,routingName string) error {
 
         // create custom routing table for directing the traffic from director nodes to the gateway node
         b, err := ioutil.ReadFile("/etc/iproute2/rt_tables")
@@ -100,18 +100,17 @@ func (gateway *EgressGateway) creatingRoutingTable(routingID string,routingName 
                 }
         }
 
-       // create policy based routing (ip rule) to lookup the custom routing table for FWMARK packets 
-        out, err := exec.Command("ip", "rule", "list","table",routingName).Output();
-	//glog.Infof("List rule: %b - %s", strings.Contains(string(out), routingName),string(out))
+        out, err := exec.Command("ip", "rule", "list").Output()
         if err != nil {
                 return errors.New("Failed to verify if `ip rule` exists due to: " + err.Error())
         }
-	if !strings.Contains(string(out), "fwmark") {
-		glog.Infof("Adding rule add prio 32764 fwmark %s table %s",string(staticEgressIPFWMARK), routingName)
-                err = exec.Command("ip", "rule", "add", "prio", "32764", "fwmark", staticEgressIPFWMARK, "table", routingName).Run()
+
+        if !strings.Contains(string(out), routingName) {
+                glog.Infof("Adding rule add prio fwmark %s table %s",routingID,routingName)
+                err = exec.Command("ip", "rule", "add", "prio", "32764", "fwmark", routingID, "table", routingName).Run()
                 if err != nil {
-                        return errors.New("Failed to add policy rule to lookup traffic marked with fwmark " + staticEgressIPFWMARK + " to the custom " + " routing table due to " + err.Error())
-                } 
+                        return errors.New("Failed to add policy rule to lookup traffic marked with fwmark " + routingID + " to the custom " + " routing table due to " + err.Error())
+                }
         }
 
         return nil
@@ -119,67 +118,54 @@ func (gateway *EgressGateway) creatingRoutingTable(routingID string,routingName 
 
 // AddStaticIptablesRule adds iptables rule for SNAT, creates source
 // and destination IPsets. IPs can then be dynamically added to these IPsets.
-func (gateway *EgressGateway) AddStaticIptablesRule(setID string,routingName string, sourceIPs []string, destinationIP, egressIP string) error {
-
-        // Create Routing Table
-        err := gateway.creatingRoutingTable(setID,routingName)
+func (d *EgressGateway) AddStaticIptablesRule(routingID string,routingName string, tableName string,sourceIPs []string, destinationIP, egressIP string) error {
+       // Create Routing Table
+        err := d.creatingRoutingTable(routingID,routingName)
         if err != nil {
                return errors.New("Failed to create routing table " + routingName + " due to %" + err.Error())
         }
 	// create IPset from sourceIP's
-	set, err := ipset.New(routingName, "hash:ip", &ipset.Params{})
+	set, err := ipset.New(tableName, "hash:ip", &ipset.Params{})
 	if err != nil {
-		return errors.New("Failed to create ipset with name " + routingName + " due to %" + err.Error())
+		return errors.New("Failed to create ipset with name " + tableName + " due to %" + err.Error())
 	}
-	glog.Infof("Created ipset name: %s", routingName)
+	glog.Infof("Created ipset name: %s", tableName)
 
 	// add IP's that need to be part of the ipset
 	for _, ip := range sourceIPs {
 		err = set.Add(ip, 0)
 		if err != nil {
-			return errors.New("Failed to add an ip " + ip + " into ipset with name " + routingName + " due to %" + err.Error())
+			return errors.New("Failed to add an ip " + ip + " into ipset with name " + tableName + " due to %" + err.Error())
 		}
-	}
-	glog.Infof("Added ips %v to the ipset name: %s", sourceIPs, routingName)
+	
 
-	ruleSpec := []string{"-m", "set", "--set", routingName, "src", "-d", destinationIP, "-j", "ACCEPT"}
-	hasRule, err := gateway.ipt.Exists("filter", egressGatewayFWChainName, ruleSpec...)
-	if err != nil {
-		return errors.New("Failed to verify rule exists in " + egressGatewayFWChainName + " chain of filter table" + err.Error())
-	}
-	if !hasRule {
-		err = gateway.ipt.Append("filter", egressGatewayFWChainName, ruleSpec...)
+		ruleSpec := []string{"-m", "set", "--set", tableName, "src", "-s", ip, "-j", "ACCEPT"}
+		hasRule, err := d.ipt.Exists("filter", egressGatewayFWChainName, ruleSpec...)
 		if err != nil {
-			return errors.New("Failed to add iptables command to ACCEPT traffic from director nodes to get forrwarded" + err.Error())
+			return errors.New("Failed to verify rule exists in " + egressGatewayFWChainName + " chain of filter table" + err.Error())
 		}
-	}
-        // Get Rules
-        out, err := exec.Command("ip", "rule", "list", "table", routingName).Output()
-        if err != nil {
-                return errors.New("Failed to verify required default route to gatewat exists. " + err.Error())
-	}
-	glog.Infof("Added rules in filter table FORWARD chain to permit traffic")
-        for _, ip := range sourceIPs {
-	  ruleSpec = []string{"-m", "set", "--match-set", routingName, "src", "-d", ip, "-j", "SNAT", "--to-source", egressIP}
-	  if err := gateway.insertRule(defaultNATIptable, egressGatewayNATChainName, 1, ruleSpec...); err != nil {
-		return fmt.Errorf("failed to insert rule to chain %v err %v", defaultPostRoutingChain, err)
-	  }
-	  if !strings.Contains(string(out), ip) {
-            glog.Infof("Adding rule from %s table %s",ip,routingName)
-	    err = exec.Command("ip", "rule", "add", "from" , ip, "table", routingName).Run()
-            if err != nil {
-       		return errors.New("Failed to add rule table due to: " + err.Error())
-            }
-	  } 
+		if !hasRule {
+			err = d.ipt.Append("filter", egressGatewayFWChainName, ruleSpec...)
+			if err != nil {
+				return errors.New("Failed to add iptables command to ACCEPT traffic from director nodes to get forrwarded" + err.Error())
+			}
+		}
+	        glog.Infof("Added rules in filter table FORWARD chain to permit traffic")
+        
+	  	ruleSpec = []string{"-m", "set", "--match-set", tableName, "src", "-d", ip, "-j", "SNAT", "--to-source", egressIP}
+		if err := d.insertRule(defaultNATIptable, egressGatewayNATChainName, 1, ruleSpec...); err != nil {
+			return fmt.Errorf("failed to insert rule to chain %v err %v", defaultPostRoutingChain, err)
+	  	}
         }
+	glog.Infof("Added ips %v to the ipset name: %s", sourceIPs, tableName)
 
         // add routing entry in custom routing table to forward destinationIP to egressGateway
-        out, err = exec.Command("ip", "route", "list", "table", routingName).Output()
+        out, err := exec.Command("ip", "route", "list", "table", routingName).Output()
         if err != nil {
-                return errors.New("Failed to verify required default route to gatewat exists. " + err.Error())
+                return errors.New("Failed to verify required default route to gateway exists. " + err.Error())
         }
 
-	if !strings.Contains(string(out),egressIP) {
+        if !strings.Contains(string(out), strings.Replace(destinationIP,"0.0.0.0/0","default",1)) && strings.Contains(egressIP,".") {
           glog.Infof("Adding routing ip route add %s via %s table %s",destinationIP,egressIP,routingName)
 	  err = exec.Command("ip", "route", "add", destinationIP, "via", egressIP, "table", routingName).Run()
           if err != nil {
@@ -191,55 +177,54 @@ func (gateway *EgressGateway) AddStaticIptablesRule(setID string,routingName str
 }
 
 // DeleteStaticIptablesRule clears IPtables rules added by AddStaticIptablesRule
-func (gateway *EgressGateway) ClearStaticIptablesRule(routingID string,routingName string, sourceIPs []string, destinationIP string, egressIP string) error {
-        set, err := ipset.New(routingName, "hash:ip", &ipset.Params{})
+func (d *EgressGateway) DeleteStaticIptablesRule(routingID string,routingName string, tableName string, sourceIPs []string, destinationIP string, egressIP string) error {
+        set, err := ipset.New(tableName, "hash:ip", &ipset.Params{})
         if err != nil {
-                return errors.New("Failed to get ipset with name " + routingName + " due to %" + err.Error())
+                return errors.New("Failed to get ipset with name " + tableName + " due to %" + err.Error())
         }
 
-	// delete rule in FORWARD chain of filter table
-	ruleSpec := []string{"-m", "set", "--set", routingName, "src", "-d", destinationIP, "-j", "ACCEPT"}
-	hasRule, err := gateway.ipt.Exists("filter", egressGatewayFWChainName, ruleSpec...)
-	if err != nil {
-		return errors.New("Failed to verify rule exists in " + egressGatewayFWChainName + " chain of filter table" + err.Error())
-	}
-	if hasRule {
-		err = gateway.ipt.Delete("filter", egressGatewayFWChainName, ruleSpec...)
+        for _, ip := range sourceIPs {
+		// delete rule in NAT postrouting to SNAT traffic
+		ruleSpec := []string{"-m", "set", "--match-set", tableName, "src", "-s", ip, "-j", "SNAT", "--to-source", egressIP}
+		if err := d.deleteRule(defaultNATIptable, egressGatewayNATChainName, ruleSpec...); err != nil {
+			return fmt.Errorf("failed to delete rule in chain %v err %v", egressGatewayNATChainName, err)
+		}
+
+		// delete rule in FORWARD chain of filter table
+		ruleSpec = []string{"-m", "set", "--set", tableName, "src", "-s", ip, "-j", "ACCEPT"}
+		hasRule, err := d.ipt.Exists("filter", egressGatewayFWChainName, ruleSpec...)
 		if err != nil {
-			return errors.New("Failed to delete iptables command to ACCEPT traffic from director nodes to get forwarded" + err.Error())
+			return errors.New("Failed to verify rule exists in " + egressGatewayFWChainName + " chain of filter table" + err.Error())
+		}
+		if hasRule {
+			err = d.ipt.Delete("filter", egressGatewayFWChainName, ruleSpec...)
+			if err != nil {
+				return errors.New("Failed to delete iptables command to ACCEPT traffic from director nodes to get forwarded" + err.Error())
+			}
 		}
 	}
-
-        // deleting routing entry in custom routing table to forward destinationIP to egressGateway
         _, err = exec.Command("ip", "route", "list", "table", routingName).Output()
         if err != nil {
                 return errors.New("Failed to verify required default route to gatewat exists. " + err.Error())
         }
-        
+
         //glog.Infof("Deleting routing ip route add %s via %s table %s",destinationIP,egressIP,routingName)
         //exec.Command("ip", "route", "delete", destinationIP, "via", egressIP, "table", routingName).Run()
+        //glog.Infof("deleted route")
 
-        // Get Rules
-        _, err = exec.Command("ip", "rule", "list", "table", routingName).Output()
+        // create policy based routing (ip rule) to lookup the custom routing table for FWMARK packets
+        _, err = exec.Command("ip", "rule", "list").Output()
         if err != nil {
-                return errors.New("Failed to verify required default route to gatewat exists. " + err.Error())
-        }
-        for _, ip := range sourceIPs {
-	  ruleSpec = []string{"-m", "set", "--match-set", routingName, "src", "-d", ip, "-j", "SNAT", "--to-source", egressIP}
-	  if err := gateway.deleteRule(defaultNATIptable, egressGatewayNATChainName, ruleSpec...); err != nil {
-                return fmt.Errorf("failed to delete rule to chain %v err %v", defaultPostRoutingChain, err)
-          }
-          glog.Infof("Deleting rule from %s table %s",ip,routingName)
-          exec.Command("ip", "rule", "delete", "from" , ip, "table", routingName).Run()
+                return errors.New("Failed to verify if `ip rule` exists due to: " + err.Error())
         }
 
-        glog.Infof("Deleting rule add prio 32764 fwmark %s table %s",string(staticEgressIPFWMARK), routingName)
-        exec.Command("ip", "rule", "delete", "prio", "32764", "fwmark", staticEgressIPFWMARK, "table", routingName).Run()
+        //glog.Infof("Deleting rule delete prio 32764 fwmark %s table %s",routingID,routingName)
+        //exec.Command("ip", "rule", "delete", "prio", "32764", "fwmark", routingID, "table", routingName).Run()
 
-	err = set.Destroy()
-	if err != nil {
-		return errors.New("Failed to delete ipset due to " + err.Error())
-	}
+        err = set.Destroy()
+        if err != nil {
+                return errors.New("Failed to delete ipset due to " + err.Error())
+        }
 
 	return nil
 } 

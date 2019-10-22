@@ -17,8 +17,11 @@ limitations under the License.
 package controller
 
 import (
+        "crypto/sha256"
+        "encoding/base32"
 	"errors"
 	"fmt"
+        "strconv"
 	"time"
 
 	"github.com/golang/glog"
@@ -264,7 +267,7 @@ func (c *Controller) doDirectorProcessing(clientset kubernetes.Interface, static
 		glog.Info("Gateway IP for forStaticEgressIP: " + staticEgressIP.Name + " is not set yet, so ignoring the update")
 		return nil
 	}
-	for _, rule := range staticEgressIP.Spec.Rules {
+	for i, rule := range staticEgressIP.Spec.Rules {
 		endpoint, err := c.endpointsLister.Endpoints(staticEgressIP.Namespace).Get(rule.ServiceName)
 		if err != nil {
 			glog.Errorf("Failed to get endpoints object for service %s due to %s", rule.ServiceName, err.Error())
@@ -279,7 +282,7 @@ func (c *Controller) doDirectorProcessing(clientset kubernetes.Interface, static
 			}
 		}
 	        //setID, setName := generateRule(staticEgressIP.Namespace, staticEgressIP.Name, i)
-		err = c.trafficDirector.AddRouteToGateway(rule.RoutingTableID,rule.RoutingTable, ips, rule.Cidr, staticEgressIP.Status.Gateways[0].GatewayIP)
+		err = c.trafficDirector.AddRouteToGateway(rule.RoutingTableID,rule.RoutingTable, generateRuleId(staticEgressIP.Namespace, staticEgressIP.Name, i), ips, rule.Cidr, staticEgressIP.Status.Gateways[0].GatewayIP)
 		if err != nil {
 			glog.Errorf("Failed to setup routes to send the egress traffic to gateway due to %s", err.Error())
 		}
@@ -309,7 +312,7 @@ func (c *Controller) doGatewayProcessing(clientset kubernetes.Interface, staticE
  		glog.Infof("Failed to update GatewayIP to %s for static egress ip %s due to %s\n", gatewayIP, staticEgressIP.Name, err.Error())
 	}
 
-	for _, rule := range staticEgressIP.Spec.Rules {
+	for i, rule := range staticEgressIP.Spec.Rules {
 		endpoint, err := c.endpointsLister.Endpoints(staticEgressIP.Namespace).Get(rule.ServiceName)
 		if err != nil {
 			glog.Errorf("Failed to get endpoints object for service %s due to %s", rule.ServiceName, err.Error())
@@ -323,7 +326,7 @@ func (c *Controller) doGatewayProcessing(clientset kubernetes.Interface, staticE
 				break
 			}
 		}
-		err = c.trafficGateway.AddStaticIptablesRule(rule.RoutingTableID,rule.RoutingTable, ips, rule.Cidr, rule.EgressIP)
+		err = c.trafficGateway.AddStaticIptablesRule(rule.RoutingTableID,rule.RoutingTable, generateRuleId(staticEgressIP.Namespace, staticEgressIP.Name, i), ips, rule.Cidr, rule.EgressIP)
 		if err != nil {
 			glog.Errorf("Failed to setup rules to send egress traffic on gateway", err.Error())
 		}
@@ -334,6 +337,12 @@ func (c *Controller) doGatewayProcessing(clientset kubernetes.Interface, staticE
 	}
 
 	return nil
+}
+
+func generateRuleId(namespace, staticEgressIpResourceName string, ruleNo int) string {
+        hash := sha256.Sum256([]byte(namespace + staticEgressIpResourceName + strconv.Itoa(ruleNo)))
+        encoded := base32.StdEncoding.EncodeToString(hash[:])
+        return "EGRESS-IP-" + encoded[:16]
 }
 
 func (c *Controller) addStaticEgressIP(obj interface{}) {
@@ -366,7 +375,7 @@ func (c *Controller) updateStaticEgressIP(old, current interface{}) {
 			if isGateway {
 				glog.Infof("Transistioning node from director to gateway for the staticegressip: %s/%s\n", newStaticEgressIPObj.Namespace, newStaticEgressIPObj.Name)
 			}
-			for _, rule := range oldStaticEgressIPObj.Spec.Rules {
+			for i, rule := range oldStaticEgressIPObj.Spec.Rules {
 				endpoint, err := c.endpointsLister.Endpoints(oldStaticEgressIPObj.Namespace).Get(rule.ServiceName)
 				if err != nil {
 					glog.Errorf("Failed to get endpoints object for service %s due to %s", rule.ServiceName, err.Error())
@@ -381,8 +390,7 @@ func (c *Controller) updateStaticEgressIP(old, current interface{}) {
 					}
 				}
 				if wasGateway {
-					//setID, setName := generateRule(oldStaticEgressIPObj.Namespace, oldStaticEgressIPObj.Name, i)
-					err = c.trafficGateway.ClearStaticIptablesRule(rule.RoutingTableID,rule.RoutingTable, ips, rule.Cidr, rule.EgressIP)
+					err = c.trafficGateway.DeleteStaticIptablesRule(rule.RoutingTableID,rule.RoutingTable, generateRuleId(oldStaticEgressIPObj.Namespace, oldStaticEgressIPObj.Name, i), ips, rule.Cidr, rule.EgressIP)
 					if err != nil {
 						glog.Errorf("Failed to cleanup old rules configured for gateway", err.Error())
 					}
@@ -392,8 +400,7 @@ func (c *Controller) updateStaticEgressIP(old, current interface{}) {
 					}
 				}
 				if isGateway {
-					//setID, setName := generateRule(oldStaticEgressIPObj.Namespace, oldStaticEgressIPObj.Name, i)
-					err = c.trafficDirector.ClearStaleRouteToGateway(rule.RoutingTableID,rule.RoutingTable, rule.Cidr, rule.EgressIP)
+					err = c.trafficDirector.DeleteRouteToGateway(rule.RoutingTableID,rule.RoutingTable, generateRuleId(oldStaticEgressIPObj.Namespace, oldStaticEgressIPObj.Name, i), ips, rule.Cidr, rule.EgressIP)
 					if err != nil {
 						glog.Errorf("Failed to cleanup old rules configured for gateway", err.Error())
 					}
@@ -425,7 +432,7 @@ func (c *Controller) deleteStaticEgressIP(obj interface{}) {
 	}
 	glog.Infof("Deleting StaticEgressIP %s", staticEgressIP.Name)
 
-	for _, rule := range staticEgressIP.Spec.Rules {
+	for i, rule := range staticEgressIP.Spec.Rules {
 		endpoint, err := c.endpointsLister.Endpoints(staticEgressIP.Namespace).Get(rule.ServiceName)
                 if err != nil {
                         glog.Errorf("Failed to get endpoints object for service %s due to %s", rule.ServiceName, err.Error())
@@ -447,13 +454,13 @@ func (c *Controller) deleteStaticEgressIP(obj interface{}) {
         	}
         	if isGateway {
 			glog.Infof("Delete rules and routes gateway node")
-			err = c.trafficGateway.ClearStaticIptablesRule(rule.RoutingTableID,rule.RoutingTable, ips, rule.Cidr, rule.EgressIP)
+			err = c.trafficGateway.DeleteStaticIptablesRule(rule.RoutingTableID,rule.RoutingTable,  generateRuleId(staticEgressIP.Namespace, staticEgressIP.Name, i), ips, rule.Cidr, rule.EgressIP)
 			if err != nil {
 				glog.Errorf("Failed to delete routes to send the egress traffic to interface at gateway", err.Error())
 			}
         	} else {
 			glog.Infof("Delete rules and routes director node")
-			err = c.trafficDirector.DeleteRouteToGateway(rule.RoutingTableID,rule.RoutingTable, ips, rule.Cidr, staticEgressIP.Status.Gateways[0].GatewayIP)
+			err = c.trafficDirector.DeleteRouteToGateway(rule.RoutingTableID,rule.RoutingTable, generateRuleId(staticEgressIP.Namespace, staticEgressIP.Name, i), ips, rule.Cidr, staticEgressIP.Status.Gateways[0].GatewayIP)
 			if err != nil {
 				glog.Errorf("Failed to delete routes to send the egress traffic to gateway", err.Error())
 			}
