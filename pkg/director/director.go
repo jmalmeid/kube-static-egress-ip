@@ -111,6 +111,37 @@ func (d *EgressDirector) AddRouteToGateway(routingID string,routingName string, 
         }
         glog.Infof("Created ipset name: %s", tableName)
 
+	listRule, err := d.ipt.List("mangle","PREROUTING")
+	if err != nil {
+           return errors.New("Failed to list mangle PREROUTING" + err.Error())
+	}
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+			ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        ip := strings.Split(ruleDelSpec[1],"/")[0]
+                        if !strings.Contains(strings.Join(sourceIPs," "),ip) {
+				err = d.ipt.Delete("mangle", "PREROUTING", ruleDelSpec...)
+				if err != nil {
+					return errors.New("Failed to delete rule in PREROUTING chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+				}
+			}
+                }
+        }
+
+        listRule, err = d.ipt.List("nat",bypassCNIMasquradeChainName)
+        if err != nil {
+           return errors.New("Failed to list nat " + bypassCNIMasquradeChainName + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+			ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        ip := strings.Split(ruleDelSpec[1],"/")[0]
+                        if !strings.Contains(strings.Join(sourceIPs," "),ip) {
+				err = d.ipt.Delete("nat", bypassCNIMasquradeChainName, ruleDelSpec...)
+			}
+		}
+	}
+	
         // add IP's that need to be part of the ipset
         for _, ip := range sourceIPs {
                 err = set.Add(ip, 0)
@@ -173,34 +204,34 @@ func (d *EgressDirector) DeleteRouteToGateway(routingID string,routingName strin
                 return errors.New("Failed to get ipset with name " + tableName + " due to %" + err.Error())
         }
 
-        for _, ip := range sourceIPs {
-		// create iptables rule in mangle table PREROUTING chain to match src to ipset created and destination
-		// matching  destinationIP then fwmark the packets
-		ruleSpec := []string{"-m", "set", "--set", tableName, "src", "-s", ip, "-j", "MARK", "--set-mark", routingID}
-		hasRule, err := d.ipt.Exists("mangle", "PREROUTING", ruleSpec...)
-		if err != nil {
-			return errors.New("Failed to verify rule exists in PREROUTING chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
-		}
-		if hasRule {
-			err = d.ipt.Delete("mangle", "PREROUTING", ruleSpec...)
+	listRule, err := d.ipt.List("mangle","PREROUTING")
+	if err != nil {
+           return errors.New("Failed to list mangle PREROUTING" + err.Error())
+	}
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+			ruleDelSpec := d.getRuleSpec(ruleSpec)
+			err = d.ipt.Delete("mangle", "PREROUTING", ruleDelSpec...)
 			if err != nil {
 				return errors.New("Failed to delete rule in PREROUTING chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
 			}
 			glog.Infof("deleted rule in PREROUTING chain of mangle table to fwmark egress traffic that needs static egress IP")
-		}
-	
-		ruleSpec = []string{"-m", "set", "--set", tableName, "src", "-s", ip, "-j", "ACCEPT"}
-		hasRule, err = d.ipt.Exists("nat", bypassCNIMasquradeChainName, ruleSpec...)
-		if err != nil {
-			return errors.New("Failed to verify rule exists in BYPASS_CNI_MASQURADE chain of nat table to bypass the CNI masqurade" + err.Error())
-		}
-		if hasRule {
-			err = d.ipt.Delete("nat", bypassCNIMasquradeChainName, ruleSpec...)
+                }
+        }
+
+        listRule, err = d.ipt.List("nat",bypassCNIMasquradeChainName)
+        if err != nil {
+           return errors.New("Failed to list nat " + bypassCNIMasquradeChainName + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+			ruleDelSpec := d.getRuleSpec(ruleSpec)
+			err = d.ipt.Delete("nat", bypassCNIMasquradeChainName, ruleDelSpec...)
 			if err != nil {
 				return errors.New("Failed to delete iptables command to add a rule to ACCEPT traffic in BYPASS_CNI_MASQURADE chain" + err.Error())
 			}
-		}
-	}
+                }
+        }
 
 	// delete routing entry in custom routing table to forward destinationIP to egressGateway
 	_, err = exec.Command("ip", "route", "list", "table", routingName).Output()
@@ -227,3 +258,13 @@ func (d *EgressDirector) DeleteRouteToGateway(routingID string,routingName strin
 
 	return nil
 }
+
+func (d *EgressDirector) getRuleSpec(ruleSpec string) []string {
+	a:= strings.Fields(ruleSpec)
+        for i := 2; i < len(a); i++ {
+          a[i-2] = a[i]
+        }
+        a = a[:len(a)-2]
+        return a
+}
+

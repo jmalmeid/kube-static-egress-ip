@@ -8,10 +8,12 @@ import (
 	"os"		
 	"os/exec"
 	"strings"
+	"net"
 
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/golang/glog"
 	ipset "github.com/janeczku/go-ipset/ipset"
+	netlink "github.com/vishvananda/netlink"
 )
 
 // EgressGateway configures the gateway node (based on the `staticegressip` CRD object)
@@ -124,12 +126,76 @@ func (d *EgressGateway) AddStaticIptablesRule(routingID string,routingName strin
         if err != nil {
                return errors.New("Failed to create routing table " + routingName + " due to %" + err.Error())
         }
-	// create IPset from sourceIP's
+
 	set, err := ipset.New(tableName, "hash:ip", &ipset.Params{})
 	if err != nil {
-		return errors.New("Failed to create ipset with name " + tableName + " due to %" + err.Error())
+		return errors.New("Failed to get ipset with name " + tableName + " due to %" + err.Error())
 	}
-	glog.Infof("Created ipset name: %s", tableName)
+
+        listRule, err := d.ipt.List("mangle","PREROUTING")
+        if err != nil {
+           return errors.New("Failed to list mangle PREROUTING" + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+                        ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        ip := strings.Split(ruleDelSpec[1],"/")[0]
+                        if !strings.Contains(strings.Join(sourceIPs," "),ip) {
+                                err = d.ipt.Delete("mangle", "PREROUTING", ruleDelSpec...)
+                                if err != nil {
+                                        return errors.New("Failed to delete rule in PREROUTING chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+                                }
+                        }
+                }
+        }
+        listRule, err = d.ipt.List("mangle","OUTPUT")
+        if err != nil {
+           return errors.New("Failed to list mangle OUTPUT" + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+                        ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        ip := strings.Split(ruleDelSpec[1],"/")[0]
+                        if !strings.Contains(strings.Join(sourceIPs," "),ip) {
+                                err = d.ipt.Delete("mangle","OUTPUT", ruleDelSpec...)
+                                if err != nil {
+                                        return errors.New("Failed to delete rule in OUTPUT chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+                                }
+                        }
+                }
+        }
+        listRule, err = d.ipt.List("filter", egressGatewayFWChainName)
+        if err != nil {
+           return errors.New("Failed to list filter "+ egressGatewayFWChainName + " " + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+                        ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        ip := strings.Split(ruleDelSpec[1],"/")[0]
+                        if !strings.Contains(strings.Join(sourceIPs," "),ip) {
+                                err = d.ipt.Delete("filter", egressGatewayFWChainName, ruleDelSpec...)
+                                if err != nil {
+                                        return errors.New("Failed to delete rule in "+egressGatewayFWChainName+" chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+                                }
+                        }
+                }
+        }
+        listRule, err = d.ipt.List(defaultNATIptable, egressGatewayNATChainName)
+        if err != nil {
+           return errors.New("Failed to list nat "+ egressGatewayNATChainName + " " + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+                        ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        ip := strings.Split(ruleDelSpec[1],"/")[0]
+                        if !strings.Contains(strings.Join(sourceIPs," "),ip) {
+                                err = d.ipt.Delete(defaultNATIptable, egressGatewayNATChainName, ruleDelSpec...)
+                                if err != nil {
+                                        return errors.New("Failed to delete rule in "+egressGatewayNATChainName+" chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+                                }
+                        }
+                }
+        }
 
 	// add IP's that need to be part of the ipset
 	for _, ip := range sourceIPs {
@@ -137,10 +203,41 @@ func (d *EgressGateway) AddStaticIptablesRule(routingID string,routingName strin
 		if err != nil {
 			return errors.New("Failed to add an ip " + ip + " into ipset with name " + tableName + " due to %" + err.Error())
 		}
-	
 
-		ruleSpec := []string{"-m", "set", "--set", tableName, "src", "-s", ip, "-j", "ACCEPT"}
-		hasRule, err := d.ipt.Exists("filter", egressGatewayFWChainName, ruleSpec...)
+                // create iptables rule in mangle table PREROUTING chain to match src to ipset created and destination
+                // matching  destinationIP then fwmark the packets
+                ruleSpec := []string{"-m", "set", "--set", tableName, "src", "-s", ip, "-j", "MARK", "--set-mark", routingID}
+                hasRule, err := d.ipt.Exists("mangle", "PREROUTING", ruleSpec...)
+                if err != nil {
+                        return errors.New("Failed to verify rule exists in PREROUTING chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+                }
+                if !hasRule {
+                        err = d.ipt.Insert("mangle", "PREROUTING", 1, ruleSpec...)
+                        if err != nil {
+                                return errors.New("Failed to add rule in PREROUTING chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+                        }
+                        glog.Infof("added rule in PREROUTING chain of mangle table to fwmark egress traffic that needs static egress IP")
+                }
+                glog.Infof("iptables rule in mangle table PREROUTING chain to match src to ipset")
+
+                // create iptables rule in mangle table OUTPUT chain to match src to ipset created and destination
+                // matching  destinationIP then fwmark the packets
+                ruleSpec = []string{"-m", "set", "--set", tableName, "src", "-s", ip, "-j", "MARK", "--set-mark", routingID}
+                hasRule, err = d.ipt.Exists("mangle", "OUTPUT", ruleSpec...)
+                if err != nil {
+                        return errors.New("Failed to verify rule exists in OUTPUT chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+                }
+                if !hasRule {
+                        err = d.ipt.Insert("mangle", "OUTPUT", 1, ruleSpec...)
+                        if err != nil {
+                                return errors.New("Failed to add rule in OUTPUT chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+                        }
+                        glog.Infof("added rule in OUTPUT chain of mangle table to fwmark egress traffic that needs static egress IP")
+                }
+                glog.Infof("iptables rule in mangle table OUTPUT chain to match src to ipset")
+
+		ruleSpec = []string{"-m", "set", "--set", tableName, "src", "-s", ip, "-j", "ACCEPT"}
+		hasRule, err = d.ipt.Exists("filter", egressGatewayFWChainName, ruleSpec...)
 		if err != nil {
 			return errors.New("Failed to verify rule exists in " + egressGatewayFWChainName + " chain of filter table" + err.Error())
 		}
@@ -150,13 +247,17 @@ func (d *EgressGateway) AddStaticIptablesRule(routingID string,routingName strin
 				return errors.New("Failed to add iptables command to ACCEPT traffic from director nodes to get forrwarded" + err.Error())
 			}
 		}
-	        glog.Infof("Added rules in filter table FORWARD chain to permit traffic")
-        
-	  	ruleSpec = []string{"-m", "set", "--match-set", tableName, "src", "-d", ip, "-j", "SNAT", "--to-source", egressIP}
+		glog.Infof("Added rules in filter table FORWARD chain to permit traffic")
+       		gateway, err := netlink.RouteGet(net.ParseIP(egressIP))
+       		if err != nil || len(gateway) != 1 {
+       			return fmt.Errorf("failed to get gateway interface", err)
+       		}
+
+		ruleSpec = []string{"-m", "set", "--match-set", tableName, "src", "-s", ip, "-j", "SNAT", "--to-source", gateway[0].Src.String()}
 		if err := d.insertRule(defaultNATIptable, egressGatewayNATChainName, 1, ruleSpec...); err != nil {
 			return fmt.Errorf("failed to insert rule to chain %v err %v", defaultPostRoutingChain, err)
-	  	}
-        }
+		}
+	}
 	glog.Infof("Added ips %v to the ipset name: %s", sourceIPs, tableName)
 
         // add routing entry in custom routing table to forward destinationIP to egressGateway
@@ -183,26 +284,78 @@ func (d *EgressGateway) DeleteStaticIptablesRule(routingID string,routingName st
                 return errors.New("Failed to get ipset with name " + tableName + " due to %" + err.Error())
         }
 
-        for _, ip := range sourceIPs {
-		// delete rule in NAT postrouting to SNAT traffic
-		ruleSpec := []string{"-m", "set", "--match-set", tableName, "src", "-s", ip, "-j", "SNAT", "--to-source", egressIP}
-		if err := d.deleteRule(defaultNATIptable, egressGatewayNATChainName, ruleSpec...); err != nil {
-			return fmt.Errorf("failed to delete rule in chain %v err %v", egressGatewayNATChainName, err)
-		}
+        listRule, err := d.ipt.List("mangle","PREROUTING")
+        if err != nil {
+           return errors.New("Failed to list mangle PREROUTING" + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+                        ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        err = d.ipt.Delete("mangle", "PREROUTING", ruleDelSpec...)
+                        if err != nil {
+                                return errors.New("Failed to delete rule in PREROUTING chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+                        }
+                        glog.Infof("deleted rule in PREROUTING chain of mangle table to fwmark egress traffic that needs static egress IP")
+                }
+        }
 
-		// delete rule in FORWARD chain of filter table
-		ruleSpec = []string{"-m", "set", "--set", tableName, "src", "-s", ip, "-j", "ACCEPT"}
-		hasRule, err := d.ipt.Exists("filter", egressGatewayFWChainName, ruleSpec...)
-		if err != nil {
-			return errors.New("Failed to verify rule exists in " + egressGatewayFWChainName + " chain of filter table" + err.Error())
-		}
-		if hasRule {
-			err = d.ipt.Delete("filter", egressGatewayFWChainName, ruleSpec...)
-			if err != nil {
-				return errors.New("Failed to delete iptables command to ACCEPT traffic from director nodes to get forwarded" + err.Error())
-			}
-		}
-	}
+        listRule, err = d.ipt.List("mangle","OUTPUT")
+        if err != nil {
+           return errors.New("Failed to list mangle OUTPUT" + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+                        ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        err = d.ipt.Delete("mangle", "OUTPUT", ruleDelSpec...)
+                        if err != nil {
+                                return errors.New("Failed to delete rule in OUTPUT chain of mangle table to fwmark egress traffic that needs static egress IP" + err.Error())
+                        }
+                        glog.Infof("deleted rule in OUTPUT chain of mangle table to fwmark egress traffic that needs static egress IP")
+                }
+        }
+
+        listRule, err = d.ipt.List("nat",bypassCNIMasquradeChainName)
+        if err != nil {
+           return errors.New("Failed to list nat " + bypassCNIMasquradeChainName + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+                        ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        err = d.ipt.Delete("nat", bypassCNIMasquradeChainName, ruleDelSpec...)
+                        if err != nil {
+                                return errors.New("Failed to delete iptables command to add a rule to ACCEPT traffic in BYPASS_CNI_MASQURADE chain" + err.Error())
+                        }
+                }
+        }
+
+        listRule, err = d.ipt.List("filter",egressGatewayFWChainName)
+        if err != nil {
+           return errors.New("Failed to list filter " + egressGatewayFWChainName + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+                        ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        err = d.ipt.Delete("filter", egressGatewayFWChainName, ruleDelSpec...)
+                        if err != nil {
+                                return errors.New("Failed to delete iptables command to ACCEPT traffic from director nodes to get forrwarded" + err.Error())
+                        }
+                }
+        }
+
+        listRule, err = d.ipt.List(defaultNATIptable, egressGatewayNATChainName)
+        if err != nil {
+           return errors.New("Failed to list nat " + egressGatewayNATChainName + err.Error())
+        }
+        for _, ruleSpec := range listRule {
+                if strings.Contains(string(ruleSpec),tableName) {
+                        ruleDelSpec := d.getRuleSpec(ruleSpec)
+                        err = d.ipt.Delete(defaultNATIptable, egressGatewayNATChainName, ruleDelSpec...)
+                        if err != nil {
+                                return errors.New("Failed to delete  iptables command to SNAT traffic from director nodes to get forrwarded" + err.Error())
+                        }
+                }
+        }
+
         _, err = exec.Command("ip", "route", "list", "table", routingName).Output()
         if err != nil {
                 return errors.New("Failed to verify required default route to gatewat exists. " + err.Error())
@@ -281,3 +434,13 @@ func (m *EgressGateway) insertRule(table, chain string, pos int, ruleSpec ...str
 func (m EgressGateway) deleteRule(table, chain string, ruleSpec ...string) error {
 	return m.ipt.Delete(table, chain, ruleSpec...)
 }
+
+func (d *EgressGateway) getRuleSpec(ruleSpec string) []string {
+        a:= strings.Fields(ruleSpec)
+        for i := 2; i < len(a); i++ {
+          a[i-2] = a[i]
+        }
+        a = a[:len(a)-2]
+        return a
+}
+
