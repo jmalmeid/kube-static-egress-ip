@@ -267,7 +267,7 @@ func (c *Controller) doDirectorProcessing(clientset kubernetes.Interface, static
 		glog.Info("Gateway IP for forStaticEgressIP: " + staticEgressIP.Name + " is not set yet, so ignoring the update")
 		return nil
 	}
-	for i, rule := range staticEgressIP.Spec.Rules {
+	for _, rule := range staticEgressIP.Spec.Rules {
 		endpoint, err := c.endpointsLister.Endpoints(staticEgressIP.Namespace).Get(rule.ServiceName)
 		if err != nil {
 			glog.Errorf("Failed to get endpoints object for service %s due to %s", rule.ServiceName, err.Error())
@@ -282,10 +282,10 @@ func (c *Controller) doDirectorProcessing(clientset kubernetes.Interface, static
 			}
 		}
 	        //setID, setName := generateRule(staticEgressIP.Namespace, staticEgressIP.Name, i)
-		err = c.trafficDirector.AddRouteToGateway(rule.RoutingTableID,rule.RoutingTable, generateRuleId(staticEgressIP.Namespace, staticEgressIP.Name, i), ips, rule.Cidr, staticEgressIP.Status.Gateways[0].GatewayIP)
+		/*err = c.trafficDirector.AddRouteToGateway(rule.RoutingTableID,rule.RoutingTable, generateRuleId(staticEgressIP.Namespace, staticEgressIP.Name, i), ips, rule.Cidr, staticEgressIP.Status.Gateways[0].GatewayIP)
 		if err != nil {
 			glog.Errorf("Failed to setup routes to send the egress traffic to gateway due to %s", err.Error())
-		}
+		}*/
 	}
 
 	return nil
